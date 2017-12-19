@@ -7,23 +7,20 @@ It consists in the implementation and acceleration (through OpenMP) of the algor
 
 ### How to compile ###
 
-**Required**
+#### Required ####
 - [Boost Libraries](http://www.boost.org/)
 - [OpenMPI](https://www.open-mpi.org/)
 - An OpenMP-compatible compiler (e.g. gcc/g++)
 
-**Build Procedure**
+#### Build Procedure ####
 This project uses CMake as a build system.
 Basic way of building
-'''
+```
 mkdir build
 cd build
 cmake ..
 make
-'''
-
-#### Build Procedure ####
-
+```
 
 ### How to test ###
 
