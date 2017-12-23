@@ -1,4 +1,3 @@
-
 /*
 
 Functions to implement
@@ -8,3 +7,9 @@ Functions to implement
     - update_epsilon(n, theta, sparse)
 
 */
+
+#include <mpi.h>
+#include <omp.h>
+#include <stdio.h>
+
+void auction(int na, int nb, int** X);
