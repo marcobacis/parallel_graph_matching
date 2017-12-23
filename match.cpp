@@ -9,7 +9,7 @@
 
 using namespace std;
 
-int n=10000; //TODO a cosa è uguale n ? Al numero di iterazioni ?
+int n=0; //TODO a cosa è uguale n ? Al numero di iterazioni ?
 
 void auction(int na, int nb, float *x){
     vector <int> match(na,-1);
@@ -37,19 +37,17 @@ void auction(int na, int nb, float *x){
         /* Bidding */
         maxProfit = FLT_MIN;
         secondProfit = FLT_MIN;
+        bestObj = -1;
         for (auto it = freeBuyer.begin(); it != freeBuyer.end(); it++) {
             for (int j=0; j<nb; j++) {
                 if (X[*it][j] - price[j] > maxProfit) {
+                    if (j != bestObj) {
+                        secondProfit = maxProfit;
+                    }
                     bestObj = j;
                     maxProfit = X[*it][j] - price[j];
                     buyer = *it;
-                }
-            }
-        }
-        //TODO Si possono unire se si tiene traccia del secondo ogetto
-        for (auto it = freeBuyer.begin(); it != freeBuyer.end(); it++) {
-            for (int j=0; j<nb; j++) {
-                if (j!=bestObj && X[*it][j] - price[j] > secondProfit && X[*it][j] - price[j] < maxProfit) {
+                } else if (j!=bestObj && X[*it][j] - price[j] > secondProfit) {
                     secondProfit = X[*it][j] - price[j];
                 }
             }
@@ -84,7 +82,7 @@ void auction(int na, int nb, float *x){
 }
 
 int main(int argc, char** argv) {
-    float x[] = {1,2,3,4,5,6,7,8,9};
+    float x[] = {1,3,3, 4,5,7, 8,8,9};
     auction(3,3,x);
 
     return 0;
