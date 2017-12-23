@@ -10,7 +10,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -Wall -ggdb -O3")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Wall -ggdb --std=c++0x -O3")
 
 #Boost Library includes and flags
-find_package(Boost 1.56.0 REQUIRED COMPONENTS filesystem)
+find_package(Boost 1.56.0 REQUIRED COMPONENTS system)
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIR})
   link_directories(${Boost_LIBRARY_DIRS})
@@ -31,6 +31,6 @@ if(MPI_LINK_FLAGS)
 endif()
 
 #Executables
-#add_executable(test_app test.cpp)
-#target_link_libraries(test_app ${MPI_LIBRARIES})
-#target_link_libraries(test_app ${Boost_LIBRARIES})
+add_executable(test_nsd test_nsd.cpp nsd.cpp)
+target_link_libraries(test_nsd ${MPI_LIBRARIES})
+target_link_libraries(test_nsd ${Boost_LIBRARIES})
