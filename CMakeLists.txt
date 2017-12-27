@@ -25,6 +25,13 @@ add_executable(match match.cpp)
 target_link_libraries(match ${MPI_LIBRARIES})
 target_link_libraries(match ${Boost_LIBRARIES})
 
+
+#Executables
+add_executable(test_nsd test_nsd.cpp nsd.cpp)
+target_link_libraries(test_nsd ${MPI_LIBRARIES})
+target_link_libraries(test_nsd ${Boost_LIBRARIES})
+
+
 if(MPI_COMPILE_FLAGS)
   set_target_properties(match PROPERTIES
     COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
@@ -34,8 +41,3 @@ if(MPI_LINK_FLAGS)
   set_target_properties(match PROPERTIES
     LINK_FLAGS "${MPI_LINK_FLAGS}")
 endif()
-
-#Executables
-add_executable(test_nsd test_nsd.cpp nsd.cpp)
-target_link_libraries(test_nsd ${MPI_LIBRARIES})
-target_link_libraries(test_nsd ${Boost_LIBRARIES})
