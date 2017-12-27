@@ -12,6 +12,36 @@ using namespace std;
 
 int n=10; //TODO a cosa è uguale n ? Al numero di iterazioni ?
 
+struct BidResult {int obj; int buyer; float maxP; float secondP;};
+
+BidResult cmp(BidResult reduced, BidResult current) {
+    BidResult x;
+    if (current.maxP >= reduced.maxP) {
+        x.maxP = current.maxP;
+        x.obj = current.obj;
+        x.buyer = current.buyer;
+        if (reduced.maxP >= current.secondP && current.obj != reduced.obj) {
+            x.secondP = reduced.maxP;
+        } else {
+            x.secondP = current.secondP;
+        }
+    } else {
+        x.maxP = reduced.maxP;
+        x.obj = reduced.obj;
+        x.buyer = reduced.buyer;
+        if (current.maxP >= reduced.secondP && reduced.obj != current.obj) {
+            x.secondP = current.maxP;
+        } else {
+            x.secondP = reduced.secondP;
+        }
+    }
+    return x;
+}
+
+#pragma omp declare reduction \
+    (bidReduce : struct BidResult : omp_out = cmp(omp_out,omp_in)) \
+     initializer(omp_priv= {.obj=-1, .buyer=-1, .maxP=-FLT_MAX, .secondP=-FLT_MAX} )
+
 void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
     vector <int> match(na,-1);
     vector <int> assigned(nb,-1);
@@ -30,52 +60,53 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
     float gamma = (n+1)/teta;
     float delta = floor(min(na/xi, n/teta));
 
-    int bestObj;
-    float maxProfit;
-    float secondProfit;
-    int buyer;
-
     while (!freeBuyer.empty()) {
         epsilon = teta/(n+1);
         while (freeBuyer.size() > delta) {
             /* Bidding */
-            maxProfit = FLT_MIN;
-            secondProfit = FLT_MIN;
-            bestObj = -1;
-            for (auto it = freeBuyer.begin(); it != freeBuyer.end(); it++) {
+
+            struct BidResult res = {.obj=-1, .buyer=-1, .maxP=-FLT_MAX, .secondP=-FLT_MAX};
+
+            #pragma omp parallel num_threads(8)
+            {
+            #pragma omp for collapse(2) reduction(bidReduce:res)
+            for (int i = 0; i < freeBuyer.size(); i++) {
                 for (int j=0; j<nb; j++) {
-                    if (X[*it][j] - price[j] > maxProfit) {
-                        if (j != bestObj) {
-                            secondProfit = maxProfit;
+                    auto it = freeBuyer.begin();
+                    advance(it,i);
+                    if (X[*it][j] - price[j] > res.maxP) {
+                        if (j != res.obj) {
+                            res.secondP = res.maxP;
                         }
-                        bestObj = j;
-                        maxProfit = X[*it][j] - price[j];
-                        buyer = *it;
-                    } else if (j!=bestObj && X[*it][j] - price[j] > secondProfit) {
-                        secondProfit = X[*it][j] - price[j];
+                        res.obj = j;
+                        res.maxP = X[*it][j] - price[j];
+                        res.buyer = *it;
+                    } else if (j!=res.obj && X[*it][j] - price[j] > res.secondP) {
+                        res.secondP = X[*it][j] - price[j];
                     }
                 }
             }
+            }
 
-            if (secondProfit == FLT_MIN)
-                secondProfit = 0;
+            if (res.secondP == -FLT_MAX)
+                res.secondP = 0;
 
             /* Price update */
-            price[bestObj] += (maxProfit - secondProfit + epsilon);
+            price[res.obj] += (res.maxP - res.secondP + epsilon);
 
             /* Assignment */
 
             /* delete previous match (if exists)
                and insert the old owner in free buyer */
-            if (assigned[bestObj] != -1 && assigned[bestObj]!=buyer) {
-                match[assigned[bestObj]] = -1;
-                freeBuyer.insert(assigned[bestObj]);
+            if (assigned[res.obj] != -1 && assigned[res.obj]!=res.buyer) {
+                match[assigned[res.obj]] = -1;
+                freeBuyer.insert(assigned[res.obj]);
             }
 
             /* make the new match */
-            match[buyer] = bestObj;
-            assigned[bestObj] = buyer;
-            freeBuyer.erase(buyer);
+            match[res.buyer] = res.obj;
+            assigned[res.obj] = res.buyer;
+            freeBuyer.erase(res.buyer);
 
             /* update epsilon */
             if (gamma > epsilon) {
