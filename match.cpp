@@ -12,6 +12,8 @@ using namespace std;
 
 int n=10; //TODO a cosa è uguale n ? Al numero di iterazioni ?
 
+int worldSize, worldRank;
+
 struct BidResult {int obj; int buyer; float maxP; float secondP;};
 
 BidResult cmp(BidResult reduced, BidResult current) {
@@ -43,12 +45,24 @@ BidResult cmp(BidResult reduced, BidResult current) {
      initializer(omp_priv= {.obj=-1, .buyer=-1, .maxP=-FLT_MAX, .secondP=-FLT_MAX} )
 
 void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
-    vector <int> match(na,-1);
+    int nLocal = (na/worldSize); //TODO gestire il caso di multipli non esatti (renderlo un parametro della funzione)
+    vector <int> match(nLocal,-1);
     vector <int> assigned(nb,-1);
     unordered_set <int> freeBuyer; //TODO or class template specialization<vector>   std::vector<bool>
-    for (int i=0; i<na; i++)
+    for (int i=0; i<nLocal; i++)
         freeBuyer.insert(i);
+    unordered_set <int> freeBuyerGlobal;
+    for (int i=0; i<na; i++)
+        freeBuyerGlobal.insert(i);
     vector <float> price(nb,0);
+
+    float localPrice;
+    float sendPrice[2];
+    float *receivedPrices = (float *)malloc(sizeof(float) * (worldSize*2));
+
+    int *recvBuyerLenghts = (int *)malloc(sizeof(int) * (worldSize));
+    int *recvBuyer;
+    vector <int> sendBuyer;
 
     float (*X)[nb] = (float (*)[nb]) x;
 
@@ -60,10 +74,43 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
     float gamma = (n+1)/teta;
     float delta = floor(min(na/xi, n/teta));
 
-    while (!freeBuyer.empty()) {
+    bool debug = false;
+
+    while (!freeBuyerGlobal.empty()) {
         epsilon = teta/(n+1);
-        while (freeBuyer.size() > delta) {
+        while (freeBuyerGlobal.size() > delta) {
             /* Bidding */
+
+            if (debug) {
+            cout << worldRank << " : price ";
+            for (int i=0;i<nb;i++)
+                cout << price[i] << " ";
+            cout << "\n";
+
+            cout << worldRank << " : sendBuyer ";
+            for (int i = 0; i < sendBuyer.size(); i++) {
+                auto it = sendBuyer.begin();
+                advance(it,i);
+                cout << *it << " ";
+            }
+            cout << "\n";
+
+            cout << worldRank << " : globalB ";
+            for (int i = 0; i < freeBuyerGlobal.size(); i++) {
+                auto it = freeBuyerGlobal.begin();
+                advance(it,i);
+                cout << *it << " ";
+            }
+            cout << "\n";
+
+            cout << worldRank << " : localB ";
+            for (int i = 0; i < freeBuyer.size(); i++) {
+                auto it = freeBuyer.begin();
+                advance(it,i);
+                cout << *it << " ";
+            }
+            cout << "\n";
+            }
 
             struct BidResult res = {.obj=-1, .buyer=-1, .maxP=-FLT_MAX, .secondP=-FLT_MAX};
 
@@ -92,21 +139,66 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
                 res.secondP = 0;
 
             /* Price update */
-            price[res.obj] += (res.maxP - res.secondP + epsilon);
+            localPrice = price[res.obj] + (res.maxP - res.secondP + epsilon);
 
-            /* Assignment */
+            if (debug)
+                cout << worldRank <<  " : localbuyer " << res.buyer << " make offer for " << res.obj << " offering " << localPrice << "\n";
 
-            /* delete previous match (if exists)
-               and insert the old owner in free buyer */
-            if (assigned[res.obj] != -1 && assigned[res.obj]!=res.buyer) {
-                match[assigned[res.obj]] = -1;
-                freeBuyer.insert(assigned[res.obj]);
+            /* Gather changed prices */
+            sendBuyer.clear();
+            sendPrice[0] = localPrice; //price
+            sendPrice[1] = res.obj; // object
+            MPI_Allgather(sendPrice,2,MPI_FLOAT,receivedPrices,2,MPI_FLOAT,MPI_COMM_WORLD);
+            for (int i=0; i<worldSize*2; i+=2) {
+                if (price[receivedPrices[i+1]] < receivedPrices[i]) {
+                    price[receivedPrices[i+1]] = receivedPrices[i];
+                    //se qualcuno dei miei local aveva comprato quell'oggetto ora lo perde.
+                    if (assigned[receivedPrices[i+1]] != -1) {
+                        match[assigned[receivedPrices[i+1]]] = -1;
+                        freeBuyer.insert(assigned[receivedPrices[i+1]]);
+                        assigned[receivedPrices[i+1]] = -1;
+
+                        sendBuyer.push_back(assigned[receivedPrices[i+1]] + (worldRank*nLocal) + 1);
+                    }
+                }
             }
 
-            /* make the new match */
-            match[res.buyer] = res.obj;
-            assigned[res.obj] = res.buyer;
-            freeBuyer.erase(res.buyer);
+            /* Check winner */
+            if (localPrice == price[res.obj]) {
+                match[res.buyer] = res.obj;
+                assigned[res.obj] = res.buyer;
+                freeBuyer.erase(res.buyer);
+
+                if (debug)
+                    cout << worldRank <<  " : localbuyer " << res.buyer << " get obj " << res.obj << "\n";
+
+                sendBuyer.push_back(-(res.buyer + (worldRank*nLocal) + 1));
+            }
+
+            /* Global freebuyer update */
+            // calcolo lunghezza totale
+            int localLenght = sendBuyer.size();
+            MPI_Allgather(&localLenght,1,MPI_INT,recvBuyerLenghts,1,MPI_INT,MPI_COMM_WORLD);
+            int globalLenght=0;
+            int displ[worldSize];
+            displ[0]=0;
+            for (int i=0;i<worldSize;i++){
+                globalLenght += recvBuyerLenghts[i];
+                if (i>0)
+                    displ[i] = displ[i-1] + recvBuyerLenghts[i-1];
+            }
+
+            //colleziono singoli effettivi update
+            recvBuyer = (int *)malloc(sizeof(int) * (globalLenght));
+            MPI_Allgatherv(&sendBuyer.front(),localLenght,MPI_INT,recvBuyer,recvBuyerLenghts,displ,MPI_INT,MPI_COMM_WORLD);
+            for (int i=0;i<globalLenght;i++){
+                if (recvBuyer[i]>0) {
+                    freeBuyerGlobal.insert(recvBuyer[i]-1);
+                } else if (recvBuyer[i]<0) {
+                    freeBuyerGlobal.erase((-recvBuyer[i])-1);
+                }
+            }
+            free(recvBuyer);
 
             /* update epsilon */
             if (gamma > epsilon) {
@@ -120,13 +212,31 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
         teta *= xi;
     }
 
-    for (int i=0;i<na;i++)
-        cout << i << " <-> " << match[i] << "\n";
+    cout << worldRank << " : Result : \n";
+    for (int i=0;i<nLocal;i++)
+        cout << i + (worldRank*nLocal) << " <-> " << match[i] << "\n";
 }
 
 int main(int argc, char** argv) {
-    float x[] = {1,3,3, 4,5,7, 8,8,9};
-    auction(3,3,x);
 
+    MPI_Init(&argc,&argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
+
+    int na=3,nb=3;
+    float X[] = {1,3,3, 4,5,7, 8,8,9};
+
+    if (worldRank == 0) {
+        float x[] = {1,3,3};
+        auction(na,nb,x);
+    } else if (worldRank == 1) {
+        float x[] = {4,5,7};
+        auction(na,nb,x);
+    } else {
+        float x[] = {8,8,9};
+        auction(na,nb,x);
+    }
+
+    MPI_Finalize();
     return 0;
 }
