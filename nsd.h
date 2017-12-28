@@ -57,7 +57,7 @@ matrix_t compute_norm(matrix_t mat);
 
 vector_t matvect_prod(matrix_t mat, vector_t vect);
 
-matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int s, int n,float alpha);
+matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha);
 
 void decompose_matrix(matrix_t mat, int components, std::vector<int> xs[], std::vector<int> ys[], std::vector<float> vals[], int nnz[]);
 

@@ -74,7 +74,7 @@ vector_t matvect_prod(matrix_t mat, vector_t vect) {
     return result;
 }
 
-matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int s, int n,float alpha) {
+matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha) {
 
     vector_t W_i[n];
     vector_t Z_i[n];
@@ -109,7 +109,7 @@ void decompose_matrix(matrix_t mat, int components, std::vector<int> xs[], std::
         for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
             int yidx = i2.index1();
             int xidx = i2.index2();
-            int idx = yidx / rowproc;
+            int idx = std::min(yidx / rowproc, components-1);
 
             xs[idx].push_back(xidx);
             ys[idx].push_back(yidx);
@@ -129,8 +129,12 @@ void scatter_matrix(matrix_t mat, int nproc) {
     decompose_matrix(mat, nproc, xs, ys, vals, nnz);
 
     for(int i = 0; i < nproc; i++){
-        int dest = i;
-        int sizes[3] = {mat.size1()/nproc, mat.size2(), nnz[i]};
+        int dest = i+1;
+        int height = mat.size1()/nproc;
+        if (i == nproc - 1)
+            height = mat.size1() - height*(nproc-1);
+
+        int sizes[3] = {height, mat.size2(), nnz[i]};
         MPI_Send(sizes, 3, MPI_INT, dest, MSG_MATRIX_SIZE, MPI_COMM_WORLD);
         MPI_Send(&xs[i][0], nnz[i], MPI_INT, dest, MSG_MATRIX_X, MPI_COMM_WORLD);
         MPI_Send(&ys[i][0], nnz[i], MPI_INT, dest, MSG_MATRIX_Y, MPI_COMM_WORLD);

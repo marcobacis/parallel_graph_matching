@@ -31,6 +31,11 @@ add_executable(test_nsd test_nsd.cpp nsd.cpp)
 target_link_libraries(test_nsd ${MPI_LIBRARIES})
 target_link_libraries(test_nsd ${Boost_LIBRARIES})
 
+#Sequential test (both similarity and auction, no MPI)
+add_executable(test_sequential test_sequential.cpp nsd.cpp)
+target_link_libraries(test_sequential ${MPI_LIBRARIES})
+target_link_libraries(test_sequential ${Boost_LIBRARIES})
+
 
 if(MPI_COMPILE_FLAGS)
   set_target_properties(match PROPERTIES

@@ -37,7 +37,7 @@ int main(int argc, char **argv)
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    procs = world_size; //doesn't count the root
+    procs = world_size;
 
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
@@ -68,9 +68,9 @@ int main(int argc, char **argv)
 
         //printMatrix(A_tilde);
 
-        scatter_matrix(A_tilde,procs);
+        scatter_matrix(A_tilde,procs-1);
 
-        worker_process(world_rank);
+        //worker_process(world_rank);
 
     }
 
