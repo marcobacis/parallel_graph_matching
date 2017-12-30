@@ -11,5 +11,8 @@ Functions to implement
 #include <mpi.h>
 #include <omp.h>
 #include <stdio.h>
+#include "nsd.h"
 
-void auction(int na, int nb, int** X);
+void auction(int na, int nb, float* X);
+
+int auctionSerial(matrix_t X);

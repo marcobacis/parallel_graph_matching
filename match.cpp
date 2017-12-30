@@ -7,6 +7,7 @@
 #include <vector>
 #include <unordered_set>
 #include "match.h"
+#include "nsd.h"
 
 using namespace std;
 
@@ -154,11 +155,17 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
                     price[receivedPrices[i+1]] = receivedPrices[i];
                     //se qualcuno dei miei local aveva comprato quell'oggetto ora lo perde.
                     if (assigned[receivedPrices[i+1]] != -1) {
+
+                        if (debug)
+                            cout << worldRank <<  " : localbuyer " << assigned[receivedPrices[i+1]] << " lose obj " << receivedPrices[i+1] << "\n";
+
+                        sendBuyer.push_back(assigned[receivedPrices[i+1]] + (worldRank*nLocal) + 1);
+
                         match[assigned[receivedPrices[i+1]]] = -1;
                         freeBuyer.insert(assigned[receivedPrices[i+1]]);
                         assigned[receivedPrices[i+1]] = -1;
 
-                        sendBuyer.push_back(assigned[receivedPrices[i+1]] + (worldRank*nLocal) + 1);
+
                     }
                 }
             }
@@ -212,12 +219,26 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
         teta *= xi;
     }
 
-    cout << worldRank << " : Result : \n";
-    for (int i=0;i<nLocal;i++)
-        cout << i + (worldRank*nLocal) << " <-> " << match[i] << "\n";
+    if (debug){
+        cout << worldRank << " : Result : \n";
+        for (int i=0;i<nLocal;i++)
+            cout << worldRank << " : " << i + (worldRank*nLocal) << " <-> " << match[i] << "\n";
+    }
+
+    /* Gather all results */
+    int *allMatch;
+    if (worldRank==0)
+        allMatch = (int *)malloc(sizeof(int) * (worldSize*nLocal));
+
+    MPI_Gather(&match.front(),nLocal,MPI_INT,allMatch,nLocal,MPI_INT,0,MPI_COMM_WORLD);
+    if (worldRank==0){
+        for (int i=0;i<worldSize*nLocal;i++)
+            cout << i << " <-> " << allMatch[i] << "\n";
+    }
+
 }
 
-int main(int argc, char** argv) {
+int runAuction(int argc, char** argv) {
 
     MPI_Init(&argc,&argv);
     MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
@@ -226,17 +247,25 @@ int main(int argc, char** argv) {
     int na=3,nb=3;
     float X[] = {1,3,3, 4,5,7, 8,8,9};
 
-    if (worldRank == 0) {
-        float x[] = {1,3,3};
-        auction(na,nb,x);
-    } else if (worldRank == 1) {
-        float x[] = {4,5,7};
-        auction(na,nb,x);
-    } else {
-        float x[] = {8,8,9};
-        auction(na,nb,x);
-    }
+    auction(na,nb,&X[worldRank*nb]);
 
     MPI_Finalize();
+    return 0;
+}
+
+int auctionSerial(matrix_t X){
+    /* Must be runned with only 1 MPI process */
+
+    MPI_Init(NULL,NULL);
+    MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
+
+    auto Xptr = X.data();
+    float *x = &Xptr[0];
+
+    auction(X.size1(),X.size2(),x);
+
+    MPI_Finalize();
+
     return 0;
 }

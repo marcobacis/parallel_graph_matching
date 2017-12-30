@@ -87,6 +87,7 @@ int main(int argc, char **argv)
     //printMatrix(X);
 
     // Auction
+    auctionSerial(X);
 
     return 0;
 }
