@@ -36,11 +36,25 @@ matrix_t compute_trans(matrix_t mat) {
     return trans;
 }
 
+float sum_elements(matrix_t mat) {
+    float sum = 0;
+    for(i1_t i1 = mat.begin1(); i1 != mat.end1(); ++i1) {
+        for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
+            sum += *i2;
+        }
+    }
+
+    return sum;
+}
+
 matrix_t compute_norm(matrix_t mat) {
 
     matrix_t tilde = matrix_t(mat);
 
     float *sums = new float [tilde.size1()];
+
+    for(int y = 0; y < tilde.size1(); y++)
+        sums[y] = 0;
 
     for(i1_t i1 = tilde.begin1(); i1 != tilde.end1(); ++i1) {
         for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
@@ -60,7 +74,7 @@ matrix_t compute_norm(matrix_t mat) {
 }
 
 vector_t matvect_prod(matrix_t mat, vector_t vect) {
-    vector_t result = vector_t(mat.size1());
+    vector_t result = vector_t(mat.size1(),0);
 
     for(i1_t i1 = mat.begin1(); i1 != mat.end1(); ++i1) {
         float sum = 0;
@@ -72,6 +86,19 @@ vector_t matvect_prod(matrix_t mat, vector_t vect) {
         result(y) = sum;
     }
     return result;
+}
+
+
+void printMatrix(ublas::matrix<float> mat) {
+
+    std::cout << mat.size1() << " " << mat.size2() << std::endl << std::flush;
+    for (int y = 0; y < mat.size1(); y++) {
+        for (int x = 0; x < mat.size2(); x++) {
+            std::cout << std::setfill('0') << std::setw(5)
+          << std::fixed << std::setprecision(5) << mat(y,x) << "\t" << std::flush;
+        }
+        std::cout << std::endl << std::flush;
+    }
 }
 
 matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha) {
@@ -88,13 +115,13 @@ matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n
         Z_i[i] = matvect_prod(A, Z_i[i-1]);
     }
 
-    matrix_t X(A.size2(), B.size2());
+    matrix_t X = ublas::zero_matrix<float>(A.size2(), B.size2());
     float alpha_pow = 1;
     for(int i = 0; i < n-1; i++) {
-        X += alpha_pow * outer_prod(W_i[i], Z_i[i]);
+        X += alpha_pow * outer_prod(Z_i[i], W_i[i]);
         alpha_pow *= alpha;
     }
-    X = (1 - alpha) * X + alpha_pow * outer_prod(W_i[n-1], Z_i[n-1]);
+    X = (1 - alpha) * X + alpha_pow * outer_prod(Z_i[n-1], W_i[n-1]);
 
     return X;
 }
@@ -131,8 +158,10 @@ void scatter_matrix(matrix_t mat, int nproc) {
     for(int i = 0; i < nproc; i++){
         int dest = i+1;
         int height = mat.size1()/nproc;
-        if (i == nproc - 1)
+        if (i == nproc - 1 && nproc > 1)
             height = mat.size1() - height*(nproc-1);
+
+        std::cout << "Sending " << height << "x" << mat.size2() << " to " << dest << std::endl<< std::flush;
 
         int sizes[3] = {height, mat.size2(), nnz[i]};
         MPI_Send(sizes, 3, MPI_INT, dest, MSG_MATRIX_SIZE, MPI_COMM_WORLD);
@@ -175,6 +204,8 @@ matrix_t receive_matrix() {
     int nnz = sizes[2];
 
     matrix_t mat(height, width);
+
+    std::cout << "Received a " << height << " x " << width << " matrix" << std::endl << std::flush;
 
 
     int y[nnz], x[nnz];

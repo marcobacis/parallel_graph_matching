@@ -2,28 +2,16 @@
 #include <omp.h>
 #include <mpi.h>
 #include <ctime>
-#include <iomanip>
 #include "nsd.h"
 #include "match.h"
 
-
-void printMatrix(ublas::matrix<float> mat) {
-
-    std::cout << mat.size1() << " " << mat.size2() << std::endl << std::flush;
-    for (int y = 0; y < mat.size1(); y++) {
-        for (int x = 0; x < mat.size2(); x++) {
-            std::cout << std::setprecision(2) << mat(y,x) << "\t" << std::flush;
-        }
-        std::cout << std::endl << std::flush;
-    }
-}
 
 int main(int argc, char **argv)
 {
     srand(time(NULL));
 
     //number of "component" (present in the paper)
-    int s = 10;
+    int s = 1000;
 
     //determines the convergence (set to 0.8 in the algorithm)
     float alpha = 0.8;
@@ -51,12 +39,22 @@ int main(int argc, char **argv)
     std::vector<vector_t > W(s, vector_t(B_tilde.size1()));
 
     for(int i = 0; i < s; i++){
+        float sum = 0;
         for(int j = 0; j < Z[i].size(); j++) {
-            Z[i][j] = float(rand()) / RAND_MAX;
+            float val = float(rand()) / RAND_MAX;
+            Z[i](j) = val;
+            sum +=val;
         }
+
+        Z[i] /= sum;
+
+        sum = 0;
         for(int j = 0; j < W[i].size(); j++) {
-            W[i][j] = float(rand()) / RAND_MAX;
+            float val = j < Z[0].size() ? Z[i](j) : float(rand()) / RAND_MAX;
+            W[i](j) = val;
+            sum += val;
         }
+        W[i] /= sum;
     }
     //X computation
 
@@ -70,21 +68,27 @@ int main(int argc, char **argv)
 
     bool swap = A.size1() < B.size1();
 
-    int height = swap ? B.size1() : A.size1();
+    int height = swap ? A.size1() : B.size1();
 
-    int width = swap ? A.size1() : B.size1();
+    int width = swap ? B.size1() : A.size1();
 
-    matrix_t X(height, width, 0);
 
+    matrix_t X = ublas::zero_matrix<float>(height,width);
     for (int i = 0; i < s; i++){
         if (swap)
-            X += compute_x_iterate(A_tilde, B_tilde, W[i], Z[i], n, alpha);
+            X += compute_x_iterate(A_tilde, B_tilde, Z[i], W[i], n, alpha);
         else
-            X += compute_x_iterate(B_tilde, A_tilde, Z[i], W[i], n, alpha);
-        std::cout << "Iteration " << i+1 << " of " << s << std::endl;
+            X += compute_x_iterate(B_tilde, A_tilde, W[i], Z[i], n, alpha);
+        //std::cout << "Iteration " << i+1 << " of " << s << std::endl;
+
     }
 
-    //printMatrix(X);
+    //for(int i = 0; i < X.size1(); i++)
+    //    X(i,i) = 0;
+
+    X /= sum_elements(X);
+
+    printMatrix(X);
 
     // Auction
     auctionSerial(X);

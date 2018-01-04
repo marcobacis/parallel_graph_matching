@@ -6,18 +6,6 @@
 #include "nsd.h"
 
 
-void printMatrix(ublas::matrix<float> mat) {
-
-    std::cout << mat.size1() << " " << mat.size2() << std::endl << std::flush;
-    for (int y = 0; y < mat.size1(); y++) {
-        for (int x = 0; x < mat.size2(); x++) {
-            std::cout << std::setprecision(2) << mat(y,x) << "\t" << std::flush;
-        }
-        std::cout << std::endl << std::flush;
-    }
-}
-
-
 void worker_process(int rank) {
     std::cout << "Im the worker number " << rank << std::endl << std::flush;
 
@@ -64,7 +52,7 @@ int main(int argc, char **argv)
             W(i) = float(rand()) / RAND_MAX;
         }
 
-        std::cout << "Sending to " << procs << " workers" << std::endl << std::flush;
+        std::cout << "Sending to " << procs-1 << " workers" << std::endl << std::flush;
 
         //printMatrix(A_tilde);
 

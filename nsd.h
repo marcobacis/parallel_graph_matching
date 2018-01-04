@@ -11,6 +11,7 @@ Functions to implement
 */
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <algorithm>
 #include <vector>
@@ -53,9 +54,13 @@ matrix_t readMtxFile(std::string filename);
 
 matrix_t compute_trans(matrix_t mat);
 
+float sum_elements(matrix_t mat);
+
 matrix_t compute_norm(matrix_t mat);
 
 vector_t matvect_prod(matrix_t mat, vector_t vect);
+
+void printMatrix(ublas::matrix<float> mat);
 
 matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha);
 
