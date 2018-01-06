@@ -72,9 +72,9 @@ matrix_t scatter_matrix(int root, matrix_t mat);
 
 matrix_t broadcast_matrix(int root, matrix_t mat);
 
-void broadcast_vector(vector_t vect, int nproc, int sender);
+vector_t broadcast_vector(int root, vector_t vect);
 
-vector_t gather_vector(int rank, int size, vector_t local, int nproc);
+vector_t allgather_vector(vector_t local);
 
 vector_t receive_vector(int from);
 

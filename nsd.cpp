@@ -208,13 +208,13 @@ matrix_t scatter_matrix(int root, matrix_t mat) {
             sum += nnz[i];
         }
 
-        MPI_Scatterv(xs.data(), nnz, displs, MPI_INT, &xcoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
-        MPI_Scatterv(ys.data(), nnz, displs, MPI_INT, &ycoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
-        MPI_Scatterv(vals.data(), nnz, displs, MPI_FLOAT, &matvals, nonzeros, MPI_FLOAT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(xs.data(), nnz, displs, MPI_INT, xcoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(ys.data(), nnz, displs, MPI_INT, ycoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(vals.data(), nnz, displs, MPI_FLOAT, matvals, nonzeros, MPI_FLOAT, root, MPI_COMM_WORLD);
     } else { // for other nodes
-        MPI_Scatterv(NULL, NULL, NULL, MPI_INT, &xcoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
-        MPI_Scatterv(NULL, NULL, NULL, MPI_INT, &ycoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
-        MPI_Scatterv(NULL, NULL, NULL, MPI_FLOAT, &matvals, nonzeros, MPI_FLOAT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(NULL, NULL, NULL, MPI_INT, xcoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(NULL, NULL, NULL, MPI_INT, ycoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(NULL, NULL, NULL, MPI_FLOAT, matvals, nonzeros, MPI_FLOAT, root, MPI_COMM_WORLD);
     }
 
     matrix_t composed = compose_matrix(size[0], size[1], nonzeros, xcoords, ycoords, matvals);
@@ -231,10 +231,6 @@ matrix_t broadcast_matrix(int root, matrix_t mat) {
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    int nprocs = 1;
-    if (rank == root) // avoids allocating a big "sizes" and "nnz" array to feed scatter/v
-        MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     std::vector<int> xs;
     std::vector<int> ys;
@@ -273,45 +269,84 @@ matrix_t broadcast_matrix(int root, matrix_t mat) {
     return composed;
 }
 
-void broadcast_vector(vector_t vect, int nproc, int sender) {
+vector_t broadcast_vector(int root, vector_t vect) {
 
-    int size = vect.size();
-    float to_send[size];
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    for (int i = 0; i < size; i++)
-        to_send[i] = vect(i);
+    int size;
 
-    for(int i = 0; i < nproc; i++){
-        int dest = i + 1;
-        MPI_Request myRequest;
-        if(dest != sender) {
-            MPI_Isend(&size, 1, MPI_INT, dest, MSG_VECTOR_SIZE, MPI_COMM_WORLD, &myRequest);
-            MPI_Isend(to_send, size, MPI_FLOAT, dest, MSG_VECTOR, MPI_COMM_WORLD, &myRequest);
-        }
+    float *vect_data;
+
+    if (rank == root) {
+        size= vect.size();
+
+        MPI_Bcast(&size, 1, MPI_INT, root, MPI_COMM_WORLD);
+
+        vect_data = new float[size];
+
+        for(int i = 0; i < size; i++)
+            vect_data[i] = vect(i);
+
+    } else {
+        MPI_Bcast(&size, 1, MPI_INT, root, MPI_COMM_WORLD);
+
+        vect_data = new float[size];
     }
+
+    MPI_Bcast(vect_data, size, MPI_FLOAT, root, MPI_COMM_WORLD);
+
+    vector_t to_return = vector_t(size);
+
+    for(int i = 0; i < size; i++)
+        to_return(i) = vect_data[i];
+
+    delete[] vect_data;
+
+    return to_return;
+
 }
 
-vector_t gather_vector(int rank, int size, vector_t local, int nproc) {
+vector_t allgather_vector(vector_t local) {
     //sends vector to everyone
-    broadcast_vector(local, nproc, rank);
 
-    vector_t gathered(size);
+    int size = local.size();
 
-    int pos = 0;
-    for (int i = 0; i < nproc; i++) {
-        int from = i+1;
+    int nprocs = 1;
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-        if (from != rank) {
-            vector_t received = receive_vector(from);
-            for (unsigned int j = 0; j < received.size(); j++, pos++)
-                gathered(pos) = received(j);
-        } else {
-            for (unsigned int j = 0; j < local.size(); j++, pos++)
-                gathered(pos) = local(j);
-        }
+    int sizes[nprocs];
+
+    //gather all the sizes
+    MPI_Allgather(&size, 1, MPI_INT, sizes, 1, MPI_INT, MPI_COMM_WORLD);
+
+    //computes displacements
+    int tot_size = 0;
+    int displs[nprocs];
+    for(int i = 0; i < nprocs; i++) {
+        displs[i] = tot_size;
+        tot_size += sizes[i];
     }
 
-    return gathered;
+    float *local_buffer = new float[size];
+    float *gathered = new float[tot_size];
+
+    for(int l = 0; l < size; l++)
+        local_buffer[l] = local(l);
+
+    //gathers the array
+    MPI_Allgatherv(local_buffer, size, MPI_FLOAT, gathered, sizes, displs, MPI_FLOAT, MPI_COMM_WORLD);
+
+    delete[] local_buffer;
+
+    vector_t gathered_vect(tot_size);
+
+    for(int i = 0; i < tot_size; i++)
+        gathered_vect(i) = gathered[i];
+
+    delete[] gathered;
+
+    return gathered_vect;
 }
 
 vector_t receive_vector(int from) {
