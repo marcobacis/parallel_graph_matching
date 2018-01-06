@@ -11,7 +11,7 @@
 
 using namespace std;
 
-int n=10; //TODO a cosa è uguale n ? Al numero di iterazioni ?
+int n=100;
 
 int worldSize, worldRank;
 
@@ -45,16 +45,20 @@ BidResult cmp(BidResult reduced, BidResult current) {
     (bidReduce : struct BidResult : omp_out = cmp(omp_out,omp_in)) \
      initializer(omp_priv= {.obj=-1, .buyer=-1, .maxP=-FLT_MAX, .secondP=-FLT_MAX} )
 
-void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
-    int nLocal = (na/worldSize); //TODO gestire il caso di multipli non esatti (renderlo un parametro della funzione)
+void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
+    int nLocal = X.size1();
+
     vector <int> match(nLocal,-1);
     vector <int> assigned(nb,-1);
-    unordered_set <int> freeBuyer; //TODO or class template specialization<vector>   std::vector<bool>
+
+    unordered_set <int> freeBuyer;
     for (int i=0; i<nLocal; i++)
         freeBuyer.insert(i);
+
     unordered_set <int> freeBuyerGlobal;
     for (int i=0; i<na; i++)
         freeBuyerGlobal.insert(i);
+
     vector <float> price(nb,0);
 
     float localPrice;
@@ -62,10 +66,8 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
     float *receivedPrices = (float *)malloc(sizeof(float) * (worldSize*2));
 
     int *recvBuyerLenghts = (int *)malloc(sizeof(int) * (worldSize));
-    int *recvBuyer;
+    vector <int> recvBuyer;
     vector <int> sendBuyer;
-
-    float (*X)[nb] = (float (*)[nb]) x;
 
     /* Initialize epsilon */
     float teta = 16;
@@ -122,15 +124,15 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
                 for (int j=0; j<nb; j++) {
                     auto it = freeBuyer.begin();
                     advance(it,i);
-                    if (X[*it][j] - price[j] > res.maxP) {
+                    if (X(*it,j) - price[j] > res.maxP) {
                         if (j != res.obj) {
                             res.secondP = res.maxP;
                         }
                         res.obj = j;
-                        res.maxP = X[*it][j] - price[j];
+                        res.maxP = X(*it,j) - price[j];
                         res.buyer = *it;
-                    } else if (j!=res.obj && X[*it][j] - price[j] > res.secondP) {
-                        res.secondP = X[*it][j] - price[j];
+                    } else if (j!=res.obj && X(*it,j) - price[j] > res.secondP) {
+                        res.secondP = X(*it,j) - price[j];
                     }
                 }
             }
@@ -186,18 +188,17 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
             // calcolo lunghezza totale
             int localLenght = sendBuyer.size();
             MPI_Allgather(&localLenght,1,MPI_INT,recvBuyerLenghts,1,MPI_INT,MPI_COMM_WORLD);
-            int globalLenght=0;
+            int globalLenght=recvBuyerLenghts[0];
             int displ[worldSize];
             displ[0]=0;
-            for (int i=0;i<worldSize;i++){
+            for (int i=1;i<worldSize;i++){
                 globalLenght += recvBuyerLenghts[i];
-                if (i>0)
-                    displ[i] = displ[i-1] + recvBuyerLenghts[i-1];
+                displ[i] = displ[i-1] + recvBuyerLenghts[i-1];
             }
 
             //colleziono singoli effettivi update
-            recvBuyer = (int *)malloc(sizeof(int) * (globalLenght));
-            MPI_Allgatherv(&sendBuyer.front(),localLenght,MPI_INT,recvBuyer,recvBuyerLenghts,displ,MPI_INT,MPI_COMM_WORLD);
+            recvBuyer.resize(globalLenght);
+            MPI_Allgatherv(&sendBuyer.front(),localLenght,MPI_INT,&recvBuyer.front(),recvBuyerLenghts,displ,MPI_INT,MPI_COMM_WORLD);
             for (int i=0;i<globalLenght;i++){
                 if (recvBuyer[i]>0) {
                     freeBuyerGlobal.insert(recvBuyer[i]-1);
@@ -205,7 +206,7 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
                     freeBuyerGlobal.erase((-recvBuyer[i])-1);
                 }
             }
-            free(recvBuyer);
+
 
             /* update epsilon */
             if (gamma > epsilon) {
@@ -238,34 +239,15 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
 
 }
 
-int runAuction(int argc, char** argv) {
-
-    MPI_Init(&argc,&argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
-    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
-
-    int na=3,nb=3;
-    float X[] = {1,3,3, 4,5,7, 8,8,9};
-
-    auction(na,nb,&X[worldRank*nb]);
-
-    MPI_Finalize();
-    return 0;
-}
-
-int auctionSerial(matrix_t X){
+void auctionSerial(matrix_t X){
     /* Must be runned with only 1 MPI process */
 
     MPI_Init(NULL,NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
     MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
 
-    auto Xptr = X.data();
-    float *x = &Xptr[0];
-
-    auction(X.size1(),X.size2(),x);
+    auction(X.size1(),X.size2(),X);
 
     MPI_Finalize();
 
-    return 0;
 }

@@ -13,6 +13,6 @@ Functions to implement
 #include <stdio.h>
 #include "nsd.h"
 
-void auction(int na, int nb, float* X);
+void auction(int na, int nb, matrix_t X); // na <= nb , na buyers, nb objects
 
-int auctionSerial(matrix_t X);
+void auctionSerial(matrix_t X);
