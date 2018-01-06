@@ -227,24 +227,50 @@ matrix_t scatter_matrix(int root, matrix_t mat) {
 
 }
 
-void broadcast_matrix(int rank, matrix_t &mat) {
+matrix_t broadcast_matrix(int root, matrix_t mat) {
 
-    std::vector<int> xs[1];
-    std::vector<int> ys[1];
-    std::vector<float> vals[1];
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    int nprocs = 1;
+    if (rank == root) // avoids allocating a big "sizes" and "nnz" array to feed scatter/v
+        MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
+    std::vector<int> xs;
+    std::vector<int> ys;
+    std::vector<float> vals;
     int nnz[1];
+    int size[2];
 
-    decompose_matrix(mat, 1, xs, ys, vals, nnz);
+    if (rank ==  root)
+        decompose_matrix(mat, 1, xs, ys, vals, nnz, size);
 
-    for(int i = 0; i < nproc; i++){
-        int dest = i + 1;
-        int sizes[3] = {(int)mat.size1(), (int)mat.size2(), nnz[0]};
-        MPI_Bcast(sizes, 3, MPI_INT, dest, MSG_MATRIX_SIZE, MPI_COMM_WORLD);
-        MPI_Send(&xs[0][0], nnz[i], MPI_INT, dest, MSG_MATRIX_X, MPI_COMM_WORLD);
-        MPI_Send(&ys[0][0], nnz[i], MPI_INT, dest, MSG_MATRIX_Y, MPI_COMM_WORLD);
-        MPI_Send(&vals[0][0], nnz[i], MPI_FLOAT, dest, MSG_MATRIX_VALS, MPI_COMM_WORLD);
+    MPI_Bcast(size, 2, MPI_INT, root, MPI_COMM_WORLD);
+    MPI_Bcast(nnz, 1, MPI_INT, root, MPI_COMM_WORLD);
+
+    int *xcoords = new int[nnz[0]];
+    int *ycoords = new int[nnz[0]];
+    float *matvals = new float[nnz[0]];
+
+    if (rank == root){
+        for(int i = 0; i < nnz[0]; i++){
+            xcoords[i] = xs[i];
+            ycoords[i] = ys[i];
+            matvals[i] = vals[i];
+        }
     }
 
+    MPI_Bcast(xcoords, nnz[0], MPI_INT, root, MPI_COMM_WORLD);
+    MPI_Bcast(ycoords, nnz[0], MPI_INT, root, MPI_COMM_WORLD);
+    MPI_Bcast(matvals, nnz[0], MPI_FLOAT, root, MPI_COMM_WORLD);
+
+    matrix_t composed = compose_matrix(size[0], size[1], nnz[0], xcoords, ycoords, matvals);
+
+    delete[] xcoords;
+    delete[] ycoords;
+    delete[] matvals;
+
+    return composed;
 }
 
 void broadcast_vector(vector_t vect, int nproc, int sender) {

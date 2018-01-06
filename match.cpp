@@ -71,7 +71,7 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
     float teta = 16;
     float xi = 2;
     float epsilon = (n+1)/teta;
-    float deps = 1/(n+1);
+    //float deps = 1/(n+1);
     float gamma = (n+1)/teta;
     float delta = floor(min(na/xi, n/teta));
 
@@ -89,7 +89,7 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
             cout << "\n";
 
             cout << worldRank << " : sendBuyer ";
-            for (int i = 0; i < sendBuyer.size(); i++) {
+            for (unsigned int i = 0; i < sendBuyer.size(); i++) {
                 auto it = sendBuyer.begin();
                 advance(it,i);
                 cout << *it << " ";
@@ -97,7 +97,7 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
             cout << "\n";
 
             cout << worldRank << " : globalB ";
-            for (int i = 0; i < freeBuyerGlobal.size(); i++) {
+            for (unsigned int i = 0; i < freeBuyerGlobal.size(); i++) {
                 auto it = freeBuyerGlobal.begin();
                 advance(it,i);
                 cout << *it << " ";
@@ -105,7 +105,7 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
             cout << "\n";
 
             cout << worldRank << " : localB ";
-            for (int i = 0; i < freeBuyer.size(); i++) {
+            for (unsigned int i = 0; i < freeBuyer.size(); i++) {
                 auto it = freeBuyer.begin();
                 advance(it,i);
                 cout << *it << " ";
@@ -118,7 +118,7 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
             #pragma omp parallel num_threads(8)
             {
             #pragma omp for collapse(2) reduction(bidReduce:res)
-            for (int i = 0; i < freeBuyer.size(); i++) {
+            for (unsigned int i = 0; i < freeBuyer.size(); i++) {
                 for (int j=0; j<nb; j++) {
                     auto it = freeBuyer.begin();
                     advance(it,i);
@@ -226,7 +226,7 @@ void auction(int na, int nb, float *x){ // na <= nb , na buyers, nb objects
     }
 
     /* Gather all results */
-    int *allMatch;
+    int *allMatch = NULL;
     if (worldRank==0)
         allMatch = (int *)malloc(sizeof(int) * (worldSize*nLocal));
 

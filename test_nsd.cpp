@@ -139,6 +139,7 @@ int main(int argc, char **argv)
         else
             send_stuff(A_tilde, B_tilde, Z, W, procs-1);*/
 
+        //matrix_t A_recv = scatter_matrix(0, A_tilde);
         matrix_t A_recv = scatter_matrix(0, A_tilde);
         std::cout << "Worker " << world_rank << " received a "
          << A_recv.size1() << " by " << A_recv.size2() << " matrix" << std::endl << std::flush;
@@ -148,7 +149,6 @@ int main(int argc, char **argv)
     else{
         matrix_t dummy;
         matrix_t A_recv = scatter_matrix(0, dummy);
-
         std::cout << "Worker " << world_rank << " received a "
          << A_recv.size1() << " by " << A_recv.size2() << " matrix" << std::endl << std::flush;
 

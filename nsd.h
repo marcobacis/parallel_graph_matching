@@ -62,9 +62,6 @@ vector_t matvect_prod(matrix_t mat, vector_t vect);
 
 void printMatrix(ublas::matrix<float> mat);
 
-bool check_nan_matrix(matrix_t mat, std::string name);
-bool check_nan_vect(vector_t vect, std::string name);
-
 matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha);
 
 matrix_t compute_x_iterate_mpi(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha, int nprocs, int rank);
@@ -73,7 +70,7 @@ void decompose_matrix(matrix_t mat, int components, std::vector<int> xs[], std::
 
 matrix_t scatter_matrix(int root, matrix_t mat);
 
-void broadcast_matrix(matrix_t mat, int nproc);
+matrix_t broadcast_matrix(int root, matrix_t mat);
 
 void broadcast_vector(vector_t vect, int nproc, int sender);
 
