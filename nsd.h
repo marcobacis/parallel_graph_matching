@@ -45,8 +45,8 @@ typedef std::tuple<int, int, float> matelem;
 #define MSG_MATRIX_X 2
 #define MSG_MATRIX_Y 3
 #define MSG_MATRIX_VALS 4
-#define MSG_VECTOR_Z 5
-#define MSG_VECTOR_W 6
+#define MSG_VECTOR_SIZE 5
+#define MSG_VECTOR 6
 
 //Functions prototypes
 
@@ -62,12 +62,23 @@ vector_t matvect_prod(matrix_t mat, vector_t vect);
 
 void printMatrix(ublas::matrix<float> mat);
 
+bool check_nan_matrix(matrix_t mat, std::string name);
+bool check_nan_vect(vector_t vect, std::string name);
+
 matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha);
+
+matrix_t compute_x_iterate_mpi(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha, int nprocs, int rank);
 
 void decompose_matrix(matrix_t mat, int components, std::vector<int> xs[], std::vector<int> ys[], std::vector<float> vals[], int nnz[]);
 
-void scatter_matrix(matrix_t mat, int nproc);
+matrix_t scatter_matrix(int root, matrix_t mat);
 
 void broadcast_matrix(matrix_t mat, int nproc);
+
+void broadcast_vector(vector_t vect, int nproc, int sender);
+
+vector_t gather_vector(int rank, int size, vector_t local, int nproc);
+
+vector_t receive_vector(int from);
 
 matrix_t receive_matrix();

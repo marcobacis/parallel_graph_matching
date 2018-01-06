@@ -53,7 +53,7 @@ matrix_t compute_norm(matrix_t mat) {
 
     float *sums = new float [tilde.size1()];
 
-    for(int y = 0; y < tilde.size1(); y++)
+    for(unsigned int y = 0; y < tilde.size1(); y++)
         sums[y] = 0;
 
     for(i1_t i1 = tilde.begin1(); i1 != tilde.end1(); ++i1) {
@@ -63,10 +63,12 @@ matrix_t compute_norm(matrix_t mat) {
     }
 
     for(i1_t i1 = tilde.begin1(); i1 != tilde.end1(); ++i1) {
-        for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
-            int y = i2.index1();
-            int x = i2.index2();
-            tilde(y, x) /= sums[y];
+        int y = i1.index1();
+        if (sums[y] != 0) {
+            for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
+                int x = i2.index2();
+                tilde(y, x) /= sums[y];
+            }
         }
     }
 
@@ -92,10 +94,11 @@ vector_t matvect_prod(matrix_t mat, vector_t vect) {
 void printMatrix(ublas::matrix<float> mat) {
 
     std::cout << mat.size1() << " " << mat.size2() << std::endl << std::flush;
-    for (int y = 0; y < mat.size1(); y++) {
-        for (int x = 0; x < mat.size2(); x++) {
-            std::cout << std::setfill('0') << std::setw(5)
-          << std::fixed << std::setprecision(5) << mat(y,x) << "\t" << std::flush;
+    for (unsigned int y = 0; y < mat.size1(); y++) {
+        for (unsigned int x = 0; x < mat.size2(); x++) {
+            //std::cout << std::setfill('0') << std::setw(5)
+          //<< std::fixed << std::setprecision(5) << mat(y,x) << "\t" << std::flush;
+          std::cout << mat(y,x) << "\t" << std::flush;
         }
         std::cout << std::endl << std::flush;
     }
@@ -118,60 +121,113 @@ matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n
     matrix_t X = ublas::zero_matrix<float>(A.size2(), B.size2());
     float alpha_pow = 1;
     for(int i = 0; i < n-1; i++) {
-        X += alpha_pow * outer_prod(Z_i[i], W_i[i]);
+        X = X + alpha_pow * outer_prod(Z_i[i], W_i[i]);
         alpha_pow *= alpha;
     }
     X = (1 - alpha) * X + alpha_pow * outer_prod(Z_i[n-1], W_i[n-1]);
-
     return X;
 }
 
-void decompose_matrix(matrix_t mat, int components, std::vector<int> xs[], std::vector<int> ys[], std::vector<float> vals[], int nnz[]) {
-
-    for(int i = 0; i < components; i++) nnz[i] = 0;
+void decompose_matrix(matrix_t mat, int components, std::vector<int> &xs, std::vector<int> &ys, std::vector<float> &vals, int nnz[], int sizes[]) {
 
     int rowproc = mat.size1() / components;
+    int heightmod = mat.size1() % components;
+
+    for(int i = 0; i < components; i++){
+        nnz[i] = 0;
+        sizes[i * 2] = i == components-1 ? rowproc + heightmod : rowproc;
+        sizes[i * 2 + 1] = mat.size2();
+    }
 
     for(i1_t i1 = mat.begin1(); i1 != mat.end1(); ++i1) {
         for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
             int yidx = i2.index1();
             int xidx = i2.index2();
             int idx = std::min(yidx / rowproc, components-1);
-
-            xs[idx].push_back(xidx);
-            ys[idx].push_back(yidx);
-            vals[idx].push_back(*i2);
-            nnz[idx]++;
+            if (*i2 != 0) {
+                xs.push_back(xidx);
+                ys.push_back(yidx);
+                vals.push_back(*i2);
+                nnz[idx]++;
+            }
         }
     }
 
 }
 
-void scatter_matrix(matrix_t mat, int nproc) {
-    std::vector<int> xs[nproc];
-    std::vector<int> ys[nproc];
-    std::vector<float> vals[nproc];
-    int nnz[nproc];
+matrix_t compose_matrix(int height, int width, int nnz, int xcoord[], int ycoord[], float vals[]) {
+    matrix_t mat(height, width);
 
-    decompose_matrix(mat, nproc, xs, ys, vals, nnz);
+    for(int i = 0; i < nnz; i++)
+        mat(ycoord[i] % height, xcoord[i] % width) = vals[i];
 
-    for(int i = 0; i < nproc; i++){
-        int dest = i+1;
-        int height = mat.size1()/nproc;
-        if (i == nproc - 1 && nproc > 1)
-            height = mat.size1() - height*(nproc-1);
-
-        std::cout << "Sending " << height << "x" << mat.size2() << " to " << dest << std::endl<< std::flush;
-
-        int sizes[3] = {height, mat.size2(), nnz[i]};
-        MPI_Send(sizes, 3, MPI_INT, dest, MSG_MATRIX_SIZE, MPI_COMM_WORLD);
-        MPI_Send(&xs[i][0], nnz[i], MPI_INT, dest, MSG_MATRIX_X, MPI_COMM_WORLD);
-        MPI_Send(&ys[i][0], nnz[i], MPI_INT, dest, MSG_MATRIX_Y, MPI_COMM_WORLD);
-        MPI_Send(&vals[i][0], nnz[i], MPI_FLOAT, dest, MSG_MATRIX_VALS, MPI_COMM_WORLD);
-    }
+    return mat;
 }
 
-void broadcast_matrix(matrix_t mat, int nproc) {
+matrix_t scatter_matrix(int root, matrix_t mat) {
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+
+    int nprocs = 1;
+    if (rank == root) // avoids allocating a big "sizes" and "nnz" array to feed scatter/v
+        MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
+    int nnz[nprocs];
+    int sizes[nprocs * 2];
+
+    std::vector<int> xs;
+    std::vector<int> ys;
+    std::vector<float> vals;
+
+    if (rank == root){
+        decompose_matrix(mat, nprocs, xs, ys, vals, nnz, sizes);
+        std::cout << std::endl;
+    }
+
+    //scatter and get sizes and number of nonzeros (used later)
+    int size[2];
+    int nonzeros;
+    MPI_Scatter(sizes, 2, MPI_INT, size, 2, MPI_INT, root, MPI_COMM_WORLD);
+    MPI_Scatter(nnz, 1, MPI_INT, &nonzeros, 1, MPI_INT, root, MPI_COMM_WORLD);
+
+    //allocates arrays to recreate matrix
+    int *xcoords = new int[nonzeros];
+    int *ycoords = new int[nonzeros];
+    float *matvals = new float[nonzeros];
+
+    //scatter for root
+    if (rank == root) {
+
+        //compute displacements
+        int displs[nprocs];
+        int sum = 0;
+        for (int i = 0; i < nprocs; i++) {
+            displs[i] = sum;
+            sum += nnz[i];
+        }
+
+        MPI_Scatterv(xs.data(), nnz, displs, MPI_INT, &xcoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(ys.data(), nnz, displs, MPI_INT, &ycoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(vals.data(), nnz, displs, MPI_FLOAT, &matvals, nonzeros, MPI_FLOAT, root, MPI_COMM_WORLD);
+    } else { // for other nodes
+        MPI_Scatterv(NULL, NULL, NULL, MPI_INT, &xcoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(NULL, NULL, NULL, MPI_INT, &ycoords, nonzeros, MPI_INT, root, MPI_COMM_WORLD);
+        MPI_Scatterv(NULL, NULL, NULL, MPI_FLOAT, &matvals, nonzeros, MPI_FLOAT, root, MPI_COMM_WORLD);
+    }
+
+    matrix_t composed = compose_matrix(size[0], size[1], nonzeros, xcoords, ycoords, matvals);
+
+    delete[] xcoords;
+    delete[] ycoords;
+    delete[] matvals;
+
+    return composed;
+
+}
+
+void broadcast_matrix(int rank, matrix_t &mat) {
 
     std::vector<int> xs[1];
     std::vector<int> ys[1];
@@ -181,9 +237,9 @@ void broadcast_matrix(matrix_t mat, int nproc) {
     decompose_matrix(mat, 1, xs, ys, vals, nnz);
 
     for(int i = 0; i < nproc; i++){
-        int dest = i;
-        int sizes[3] = {mat.size1(), mat.size2(), nnz[0]};
-        MPI_Send(sizes, 3, MPI_INT, dest, MSG_MATRIX_SIZE, MPI_COMM_WORLD);
+        int dest = i + 1;
+        int sizes[3] = {(int)mat.size1(), (int)mat.size2(), nnz[0]};
+        MPI_Bcast(sizes, 3, MPI_INT, dest, MSG_MATRIX_SIZE, MPI_COMM_WORLD);
         MPI_Send(&xs[0][0], nnz[i], MPI_INT, dest, MSG_MATRIX_X, MPI_COMM_WORLD);
         MPI_Send(&ys[0][0], nnz[i], MPI_INT, dest, MSG_MATRIX_Y, MPI_COMM_WORLD);
         MPI_Send(&vals[0][0], nnz[i], MPI_FLOAT, dest, MSG_MATRIX_VALS, MPI_COMM_WORLD);
@@ -191,6 +247,64 @@ void broadcast_matrix(matrix_t mat, int nproc) {
 
 }
 
+void broadcast_vector(vector_t vect, int nproc, int sender) {
+
+    int size = vect.size();
+    float to_send[size];
+
+    for (int i = 0; i < size; i++)
+        to_send[i] = vect(i);
+
+    for(int i = 0; i < nproc; i++){
+        int dest = i + 1;
+        MPI_Request myRequest;
+        if(dest != sender) {
+            MPI_Isend(&size, 1, MPI_INT, dest, MSG_VECTOR_SIZE, MPI_COMM_WORLD, &myRequest);
+            MPI_Isend(to_send, size, MPI_FLOAT, dest, MSG_VECTOR, MPI_COMM_WORLD, &myRequest);
+        }
+    }
+}
+
+vector_t gather_vector(int rank, int size, vector_t local, int nproc) {
+    //sends vector to everyone
+    broadcast_vector(local, nproc, rank);
+
+    vector_t gathered(size);
+
+    int pos = 0;
+    for (int i = 0; i < nproc; i++) {
+        int from = i+1;
+
+        if (from != rank) {
+            vector_t received = receive_vector(from);
+            for (unsigned int j = 0; j < received.size(); j++, pos++)
+                gathered(pos) = received(j);
+        } else {
+            for (unsigned int j = 0; j < local.size(); j++, pos++)
+                gathered(pos) = local(j);
+        }
+    }
+
+    return gathered;
+}
+
+vector_t receive_vector(int from) {
+    MPI_Status status;
+    int size;
+
+    MPI_Recv(&size, 1, MPI_INT, from, MSG_VECTOR_SIZE, MPI_COMM_WORLD, &status);
+
+    float received[size];
+
+    MPI_Recv(received, size, MPI_FLOAT, from, MSG_VECTOR, MPI_COMM_WORLD, &status);
+
+    vector_t to_return(size);
+
+    for(int i = 0; i < size; i++)
+        to_return(i) = received[i];
+
+    return to_return;
+}
 
 matrix_t receive_matrix() {
     MPI_Status status;
@@ -204,9 +318,6 @@ matrix_t receive_matrix() {
     int nnz = sizes[2];
 
     matrix_t mat(height, width);
-
-    std::cout << "Received a " << height << " x " << width << " matrix" << std::endl << std::flush;
-
 
     int y[nnz], x[nnz];
     float vals[nnz];

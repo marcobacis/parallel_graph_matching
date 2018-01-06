@@ -11,12 +11,12 @@ int main(int argc, char **argv)
     srand(time(NULL));
 
     //number of "component" (present in the paper)
-    int s = 1000;
+    int s = 10;
 
     //determines the convergence (set to 0.8 in the algorithm)
     float alpha = 0.8;
 
-    int n = 100;
+    int n = 10;
 
     if (argc != 3) {
         std::cout << "Usage" << std::endl;
@@ -40,21 +40,21 @@ int main(int argc, char **argv)
 
     for(int i = 0; i < s; i++){
         float sum = 0;
-        for(int j = 0; j < Z[i].size(); j++) {
+        for(unsigned int j = 0; j < Z[i].size(); j++) {
             float val = float(rand()) / RAND_MAX;
             Z[i](j) = val;
             sum +=val;
         }
-
-        Z[i] /= sum;
+        if(sum!=0) Z[i] /= sum;
 
         sum = 0;
-        for(int j = 0; j < W[i].size(); j++) {
+        for(unsigned int j = 0; j < W[i].size(); j++) {
             float val = j < Z[0].size() ? Z[i](j) : float(rand()) / RAND_MAX;
             W[i](j) = val;
             sum += val;
         }
-        W[i] /= sum;
+
+        if(sum!=0) W[i] /= sum;
     }
     //X computation
 
@@ -75,18 +75,17 @@ int main(int argc, char **argv)
 
     matrix_t X = ublas::zero_matrix<float>(height,width);
     for (int i = 0; i < s; i++){
+        std::cout << "Iteration " << i << std::endl;
         if (swap)
             X += compute_x_iterate(A_tilde, B_tilde, Z[i], W[i], n, alpha);
         else
             X += compute_x_iterate(B_tilde, A_tilde, W[i], Z[i], n, alpha);
-        //std::cout << "Iteration " << i+1 << " of " << s << std::endl;
-
     }
 
     //for(int i = 0; i < X.size1(); i++)
     //    X(i,i) = 0;
 
-    X /= sum_elements(X);
+    //X /= sum_elements(X);
 
     printMatrix(X);
 
