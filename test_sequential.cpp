@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     //determines the convergence (set to 0.8 in the algorithm)
     float alpha = 0.8;
 
-    int n = 10;
+    int n = 100;
 
     if (argc != 3) {
         std::cout << "Usage" << std::endl;
@@ -75,11 +75,11 @@ int main(int argc, char **argv)
 
     matrix_t X = ublas::zero_matrix<float>(height,width);
     for (int i = 0; i < s; i++){
-        std::cout << "Iteration " << i << std::endl;
+        //std::cout << "Iteration " << i << std::endl;
         if (swap)
-            X += compute_x_iterate(A_tilde, B_tilde, Z[i], W[i], n, alpha);
-        else
             X += compute_x_iterate(B_tilde, A_tilde, W[i], Z[i], n, alpha);
+        else
+            X += compute_x_iterate(A_tilde, B_tilde, Z[i], W[i], n, alpha);
     }
 
     //for(int i = 0; i < X.size1(); i++)
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 
     //X /= sum_elements(X);
 
-    printMatrix(X);
+    //printMatrix(X);
 
     // Auction
     auctionSerial(X);

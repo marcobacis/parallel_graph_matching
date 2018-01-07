@@ -121,10 +121,55 @@ matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n
     matrix_t X = ublas::zero_matrix<float>(A.size2(), B.size2());
     float alpha_pow = 1;
     for(int i = 0; i < n-1; i++) {
-        X = X + alpha_pow * outer_prod(Z_i[i], W_i[i]);
+        X = X + alpha_pow * outer_prod(W_i[i], Z_i[i]);
         alpha_pow *= alpha;
     }
-    X = (1 - alpha) * X + alpha_pow * outer_prod(Z_i[n-1], W_i[n-1]);
+    X = (1 - alpha) * X + alpha_pow * outer_prod(W_i[n-1], Z_i[n-1]);
+    return X;
+}
+
+matrix_t compute_x_iterate_mpi(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha) {
+
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    vector_t W_i[n];
+    vector_t Z_i[n];
+
+    //create W_i[0] by using a range of W
+    int wsize = ((int)W.size() / world_size);
+    int rstart =  wsize * rank;
+    int rend = rank == world_size-1 ? (int)W.size() : rstart + wsize;
+
+    vector_t W0(rend-rstart);
+    for(int i = rstart; i < rend; i++)
+        W0(i-rstart) = W(i);
+
+    //Iterate over w,z
+    W_i[0] = W0;
+    Z_i[0] = vector_t(Z);
+
+
+    for (int i = 1; i < n; i++) {
+        vector_t W_gathered;
+
+        if (i == 1) W_gathered = W;
+        else W_gathered = allgather_vector(W_i[i-1]);
+
+        W_i[i] = matvect_prod(B, W_gathered);
+        Z_i[i] = matvect_prod(A, Z_i[i-1]);
+    }
+
+    matrix_t X = ublas::zero_matrix<float>(B.size1(), A.size1());
+    float alpha_pow = 1;
+    for(int i = 0; i < n-1; i++) {
+        X = X + alpha_pow * outer_prod(W_i[i], Z_i[i]);
+        alpha_pow *= alpha;
+    }
+    X = (1 - alpha) * X + alpha_pow * outer_prod(W_i[n-1], Z_i[n-1]);
     return X;
 }
 
@@ -146,7 +191,7 @@ void decompose_matrix(matrix_t mat, int components, std::vector<int> &xs, std::v
             int idx = std::min(yidx / rowproc, components-1);
             if (*i2 != 0) {
                 xs.push_back(xidx);
-                ys.push_back(yidx);
+                ys.push_back(yidx % rowproc);
                 vals.push_back(*i2);
                 nnz[idx]++;
             }
@@ -156,10 +201,10 @@ void decompose_matrix(matrix_t mat, int components, std::vector<int> &xs, std::v
 }
 
 matrix_t compose_matrix(int height, int width, int nnz, int xcoord[], int ycoord[], float vals[]) {
-    matrix_t mat(height, width);
+    matrix_t mat(height, width, 0);
 
     for(int i = 0; i < nnz; i++)
-        mat(ycoord[i] % height, xcoord[i] % width) = vals[i];
+        mat(ycoord[i], xcoord[i]) = vals[i];
 
     return mat;
 }
@@ -296,7 +341,7 @@ vector_t broadcast_vector(int root, vector_t vect) {
 
     MPI_Bcast(vect_data, size, MPI_FLOAT, root, MPI_COMM_WORLD);
 
-    vector_t to_return = vector_t(size);
+    vector_t to_return = vector_t(size,0);
 
     for(int i = 0; i < size; i++)
         to_return(i) = vect_data[i];
@@ -339,7 +384,7 @@ vector_t allgather_vector(vector_t local) {
 
     delete[] local_buffer;
 
-    vector_t gathered_vect(tot_size);
+    vector_t gathered_vect(tot_size, 0);
 
     for(int i = 0; i < tot_size; i++)
         gathered_vect(i) = gathered[i];
@@ -347,49 +392,4 @@ vector_t allgather_vector(vector_t local) {
     delete[] gathered;
 
     return gathered_vect;
-}
-
-vector_t receive_vector(int from) {
-    MPI_Status status;
-    int size;
-
-    MPI_Recv(&size, 1, MPI_INT, from, MSG_VECTOR_SIZE, MPI_COMM_WORLD, &status);
-
-    float received[size];
-
-    MPI_Recv(received, size, MPI_FLOAT, from, MSG_VECTOR, MPI_COMM_WORLD, &status);
-
-    vector_t to_return(size);
-
-    for(int i = 0; i < size; i++)
-        to_return(i) = received[i];
-
-    return to_return;
-}
-
-matrix_t receive_matrix() {
-    MPI_Status status;
-    int from = 0;
-    //First, receives matrix size
-    int sizes[3];
-    MPI_Recv(sizes, 3, MPI_INT, from, MSG_MATRIX_SIZE, MPI_COMM_WORLD, &status);
-
-    int height = sizes[0];
-    int width = sizes[1];
-    int nnz = sizes[2];
-
-    matrix_t mat(height, width);
-
-    int y[nnz], x[nnz];
-    float vals[nnz];
-
-    MPI_Recv(x, nnz, MPI_INT, from, MSG_MATRIX_X, MPI_COMM_WORLD, &status);
-    MPI_Recv(y, nnz, MPI_INT, from, MSG_MATRIX_Y, MPI_COMM_WORLD, &status);
-    MPI_Recv(vals, nnz, MPI_FLOAT, from, MSG_MATRIX_VALS, MPI_COMM_WORLD, &status);
-
-    for(int i = 0; i < nnz; i++) {
-        mat(y[i] % height, x[i] % width) = vals[i];
-    }
-
-    return mat;
 }
