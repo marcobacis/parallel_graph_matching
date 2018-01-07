@@ -123,8 +123,9 @@ int main(int argc, char **argv)
 
     }
 
-    //Auction
+    if (world_rank == 0) printMatrix(X);
 
+    //Auction
     std::cout << "Worker " << world_rank << " finished!" << std::endl;
 
     // Finalize the MPI environment.

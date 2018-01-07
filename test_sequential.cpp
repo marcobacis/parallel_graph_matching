@@ -90,6 +90,9 @@ int main(int argc, char **argv)
     //printMatrix(X);
 
     // Auction
+
+    std::cout << "Executing the auction" << std::endl;
+
     auctionSerial(X);
 
     return 0;

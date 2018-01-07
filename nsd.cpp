@@ -118,7 +118,7 @@ matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n
         Z_i[i] = matvect_prod(A, Z_i[i-1]);
     }
 
-    matrix_t X = ublas::zero_matrix<float>(A.size2(), B.size2());
+    matrix_t X = ublas::zero_matrix<float>(B.size1(), A.size1());
     float alpha_pow = 1;
     for(int i = 0; i < n-1; i++) {
         X = X + alpha_pow * outer_prod(W_i[i], Z_i[i]);
@@ -184,6 +184,7 @@ void decompose_matrix(matrix_t mat, int components, std::vector<int> &xs, std::v
         sizes[i * 2 + 1] = mat.size2();
     }
 
+
     for(i1_t i1 = mat.begin1(); i1 != mat.end1(); ++i1) {
         for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
             int yidx = i2.index1();
@@ -191,7 +192,8 @@ void decompose_matrix(matrix_t mat, int components, std::vector<int> &xs, std::v
             int idx = std::min(yidx / rowproc, components-1);
             if (*i2 != 0) {
                 xs.push_back(xidx);
-                ys.push_back(yidx % rowproc);
+                //changes y index to start the submatrix from 0
+                ys.push_back(yidx - idx * rowproc);
                 vals.push_back(*i2);
                 nnz[idx]++;
             }
