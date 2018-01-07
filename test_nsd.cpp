@@ -4,6 +4,7 @@
 #include <ctime>
 #include <iomanip>
 #include "nsd.h"
+#include "match.h"
 
 void writeMatrix(ublas::matrix<float> mat, std::string filename) {
 
@@ -123,9 +124,11 @@ int main(int argc, char **argv)
 
     }
 
-    if (world_rank == 0) printMatrix(X);
+    //printMatrix(X);
 
     //Auction
+    runAuction(X.size2(),X);
+
     std::cout << "Worker " << world_rank << " finished!" << std::endl;
 
     // Finalize the MPI environment.

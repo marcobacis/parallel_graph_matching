@@ -161,7 +161,7 @@ void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
                         if (debug)
                             cout << worldRank <<  " : localbuyer " << assigned[receivedPrices[i+1]] << " lose obj " << receivedPrices[i+1] << "\n";
 
-                        sendBuyer.push_back(assigned[receivedPrices[i+1]] + (worldRank*nLocal) + 1);
+                        sendBuyer.push_back(assigned[receivedPrices[i+1]] + (worldRank*(na/worldSize)) + 1);
 
                         match[assigned[receivedPrices[i+1]]] = -1;
                         freeBuyer.insert(assigned[receivedPrices[i+1]]);
@@ -181,7 +181,7 @@ void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
                 if (debug)
                     cout << worldRank <<  " : localbuyer " << res.buyer << " get obj " << res.obj << "\n";
 
-                sendBuyer.push_back(-(res.buyer + (worldRank*nLocal) + 1));
+                sendBuyer.push_back(-(res.buyer + (worldRank*(na/worldSize)) + 1));
             }
 
             /* Global freebuyer update */
@@ -197,8 +197,11 @@ void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
             }
 
             //colleziono singoli effettivi update
-            recvBuyer.resize(globalLenght);
+            if (recvBuyer.size()<globalLenght)
+                recvBuyer.resize(globalLenght);
+
             MPI_Allgatherv(&sendBuyer.front(),localLenght,MPI_INT,&recvBuyer.front(),recvBuyerLenghts,displ,MPI_INT,MPI_COMM_WORLD);
+
             for (int i=0;i<globalLenght;i++){
                 if (recvBuyer[i]>0) {
                     freeBuyerGlobal.insert(recvBuyer[i]-1);
@@ -207,6 +210,7 @@ void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
                 }
             }
 
+            if (worldRank==0) cout << na - freeBuyerGlobal.size() << " / " << na << " node matched\n";
 
             /* update epsilon */
             if (gamma > epsilon) {
@@ -223,20 +227,58 @@ void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
     if (debug){
         cout << worldRank << " : Result : \n";
         for (int i=0;i<nLocal;i++)
-            cout << worldRank << " : " << i + (worldRank*nLocal) << " <-> " << match[i] << "\n";
+            cout << worldRank << " : " << i + (worldRank*(na/worldSize)) << " <-> " << match[i] << "\n";
     }
 
     /* Gather all results */
-    int *allMatch = NULL;
-    if (worldRank==0)
-        allMatch = (int *)malloc(sizeof(int) * (worldSize*nLocal));
 
-    MPI_Gather(&match.front(),nLocal,MPI_INT,allMatch,nLocal,MPI_INT,0,MPI_COMM_WORLD);
-    if (worldRank==0){
-        for (int i=0;i<worldSize*nLocal;i++)
-            cout << i << " <-> " << allMatch[i] << "\n";
+    collectMatch(match,nLocal);
+
+}
+
+void collectMatch(vector<int> match, int nLocal){
+    vector<int> allMatch;
+
+    int disps[worldSize];
+    int contv[worldSize];
+
+    if (worldRank == worldSize-1){
+        MPI_Send(&nLocal,1,MPI_INT,0,0,MPI_COMM_WORLD);
     }
 
+    if (worldRank==0) {
+        int lastSize;
+        MPI_Recv(&lastSize,1,MPI_INT,worldSize-1,0,MPI_COMM_WORLD,NULL);
+        allMatch.resize(nLocal*(worldSize-1) + lastSize);
+
+        disps[0]=0;
+        contv[0]=nLocal;
+        for (int i=1;i<worldSize;i++){
+            disps[i] = disps[i-1] + nLocal;
+            contv[i] = nLocal;
+        }
+        contv[worldSize-1] = lastSize;
+    }
+
+
+    MPI_Gatherv(&match.front(),nLocal,MPI_INT,&allMatch.front(),contv,disps,MPI_INT,0,MPI_COMM_WORLD);
+
+    if (worldRank==0){
+        for (unsigned int i=0;i<allMatch.size();i++)
+            cout << i << " <-> " << allMatch[i] << "\n";
+    }
+}
+
+void runAuction(int nb, matrix_t X){
+    MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
+
+    int na;
+    int naLocal=X.size1();
+
+    MPI_Allreduce(&naLocal,&na,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+
+    auction(na,nb,X);
 }
 
 void auctionSerial(matrix_t X){

@@ -23,7 +23,7 @@ include_directories(${MPI_INCLUDE_PATH})
 
 
 #Executables
-add_executable(test_nsd test_nsd.cpp nsd.cpp)
+add_executable(test_nsd test_nsd.cpp nsd.cpp match.cpp)
 target_link_libraries(test_nsd ${MPI_LIBRARIES})
 target_link_libraries(test_nsd ${Boost_LIBRARIES})
 
