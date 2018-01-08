@@ -28,7 +28,7 @@ int main(int argc, char **argv)
     // Global parameters
     int s = 10;
     float alpha = 0.8;
-    int n = 100;
+    int n = 10;
 
     // Initialization phase
 
@@ -74,10 +74,10 @@ int main(int argc, char **argv)
     // ALL workers (root included)
 
     //Broadcast A
-    matrix_t A = broadcast_matrix(0, A_tilde);
+    sparse_t A = broadcast_matrix(0, A_tilde);
 
     //Scatter B
-    matrix_t B = scatter_matrix(0, B_tilde);
+    sparse_t B = scatter_matrix(0, B_tilde);
 
     //X computation (along with Z initialization, can be changed)
 
@@ -125,6 +125,8 @@ int main(int argc, char **argv)
     }
 
     //printMatrix(X);
+
+    std::cout << "Worker" << world_rank << " starting auction" << std::endl;
 
     //Auction
     runAuction(X.size2(),X);

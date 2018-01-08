@@ -1,7 +1,7 @@
 #include "nsd.h"
 
 
-matrix_t readMtxFile(std::string filename) {
+sparse_t readMtxFile(std::string filename) {
     int height, width, nonzeros;
     int y,x;
 
@@ -12,7 +12,7 @@ matrix_t readMtxFile(std::string filename) {
 
     fin >> height >> width >> nonzeros;
 
-    ublas::mapped_matrix<float> mat(height, width, nonzeros);
+    sparse_t mat(height, width, nonzeros);
 
     for (int i = 0; i < nonzeros; i++) {
         fin >> y >> x;
@@ -22,15 +22,34 @@ matrix_t readMtxFile(std::string filename) {
     return mat;
 }
 
-matrix_t compute_trans(matrix_t mat) {
-    matrix_t trans = matrix_t(mat.size2(), mat.size1());
+/*
+Fast transposition for sparse matrices, works by grabbing all the nonzero coords,
+sorting them and writing the trans matrix.
+It's faster because writing with transposed coordinates is a pain if not sorted,
+but we sort them so it's a linear pattern after.
+*/
+sparse_t compute_trans(sparse_t mat) {
+    sparse_t trans = sparse_t(mat.size2(), mat.size1());
 
-    for(i1_t i1 = mat.begin1(); i1 != mat.end1(); ++i1) {
-        for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
-            int y = i2.index1();
-            int x = i2.index2();
-            trans(x,y) = *i2;
+    typedef unsigned long long coord;
+
+    std::vector<coord> coords;
+    coord theight = mat.size2();
+
+    for(is1_t i1 = mat.begin1(); i1 != mat.end1(); ++i1) {
+        for(is2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
+            coord y = i2.index1();
+            coord x = i2.index2();
+            coords.push_back(x * theight + y);
         }
+    }
+
+    std::sort(coords.begin(), coords.end());
+
+    for(unsigned int i = 0; i < coords.size(); i++) {
+        coord y = coords[i] / theight;
+        coord x = coords[i] % theight;
+        trans(y,x) = mat(x,y);
     }
 
     return trans;
@@ -47,25 +66,25 @@ float sum_elements(matrix_t mat) {
     return sum;
 }
 
-matrix_t compute_norm(matrix_t mat) {
+sparse_t compute_norm(sparse_t mat) {
 
-    matrix_t tilde = matrix_t(mat);
+    sparse_t tilde = sparse_t(mat);
 
     float *sums = new float [tilde.size1()];
 
     for(unsigned int y = 0; y < tilde.size1(); y++)
         sums[y] = 0;
 
-    for(i1_t i1 = tilde.begin1(); i1 != tilde.end1(); ++i1) {
-        for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
+    for(is1_t i1 = tilde.begin1(); i1 != tilde.end1(); ++i1) {
+        for(is2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
             sums[i2.index1()] += *i2;
         }
     }
 
-    for(i1_t i1 = tilde.begin1(); i1 != tilde.end1(); ++i1) {
+    for(is1_t i1 = tilde.begin1(); i1 != tilde.end1(); ++i1) {
         int y = i1.index1();
         if (sums[y] != 0) {
-            for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
+            for(is2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
                 int x = i2.index2();
                 tilde(y, x) /= sums[y];
             }
@@ -173,7 +192,7 @@ matrix_t compute_x_iterate_mpi(matrix_t A, matrix_t B, vector_t Z, vector_t W, i
     return X;
 }
 
-void decompose_matrix(matrix_t mat, int components, std::vector<int> &xs, std::vector<int> &ys, std::vector<float> &vals, int nnz[], int sizes[]) {
+void decompose_matrix(sparse_t mat, int components, std::vector<int> &xs, std::vector<int> &ys, std::vector<float> &vals, int nnz[], int sizes[]) {
 
     int rowproc = mat.size1() / components;
     int heightmod = mat.size1() % components;
@@ -185,8 +204,8 @@ void decompose_matrix(matrix_t mat, int components, std::vector<int> &xs, std::v
     }
 
 
-    for(i1_t i1 = mat.begin1(); i1 != mat.end1(); ++i1) {
-        for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
+    for(is1_t i1 = mat.begin1(); i1 != mat.end1(); ++i1) {
+        for(is2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
             int yidx = i2.index1();
             int xidx = i2.index2();
             int idx = std::min(yidx / rowproc, components-1);
@@ -202,8 +221,8 @@ void decompose_matrix(matrix_t mat, int components, std::vector<int> &xs, std::v
 
 }
 
-matrix_t compose_matrix(int height, int width, int nnz, int xcoord[], int ycoord[], float vals[]) {
-    matrix_t mat(height, width, 0);
+sparse_t compose_matrix(int height, int width, int nnz, int xcoord[], int ycoord[], float vals[]) {
+    sparse_t mat(height, width, 0);
 
     for(int i = 0; i < nnz; i++)
         mat(ycoord[i], xcoord[i]) = vals[i];
@@ -211,7 +230,7 @@ matrix_t compose_matrix(int height, int width, int nnz, int xcoord[], int ycoord
     return mat;
 }
 
-matrix_t scatter_matrix(int root, matrix_t mat) {
+sparse_t scatter_matrix(int root, sparse_t mat) {
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -264,7 +283,7 @@ matrix_t scatter_matrix(int root, matrix_t mat) {
         MPI_Scatterv(NULL, NULL, NULL, MPI_FLOAT, matvals, nonzeros, MPI_FLOAT, root, MPI_COMM_WORLD);
     }
 
-    matrix_t composed = compose_matrix(size[0], size[1], nonzeros, xcoords, ycoords, matvals);
+    sparse_t composed = compose_matrix(size[0], size[1], nonzeros, xcoords, ycoords, matvals);
 
     delete[] xcoords;
     delete[] ycoords;
@@ -274,7 +293,7 @@ matrix_t scatter_matrix(int root, matrix_t mat) {
 
 }
 
-matrix_t broadcast_matrix(int root, matrix_t mat) {
+sparse_t broadcast_matrix(int root, sparse_t mat) {
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -307,7 +326,7 @@ matrix_t broadcast_matrix(int root, matrix_t mat) {
     MPI_Bcast(ycoords, nnz[0], MPI_INT, root, MPI_COMM_WORLD);
     MPI_Bcast(matvals, nnz[0], MPI_FLOAT, root, MPI_COMM_WORLD);
 
-    matrix_t composed = compose_matrix(size[0], size[1], nnz[0], xcoords, ycoords, matvals);
+    sparse_t composed = compose_matrix(size[0], size[1], nnz[0], xcoords, ycoords, matvals);
 
     delete[] xcoords;
     delete[] ycoords;
