@@ -40,6 +40,9 @@ int main(int argc, char **argv)
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
+    sparse_t A_read;
+    sparse_t B_read;
+
     //Dummy matrices to pass to the broadcast/scatter functions
     sparse_t A_tilde, B_tilde;
     sparse_t A_trans, B_trans;
@@ -55,8 +58,8 @@ int main(int argc, char **argv)
 
         std::cout << "Initialization" << std::endl << std::flush;
 
-        sparse_t A_read = readMtxFile(argv[1]);
-        sparse_t B_read = readMtxFile(argv[2]);
+        A_read = readMtxFile(argv[1]);
+        B_read = readMtxFile(argv[2]);
 
         bool swap = A_read.size1() < B_read.size1();
         if (swap) {
@@ -129,7 +132,18 @@ int main(int argc, char **argv)
     std::cout << "Worker" << world_rank << " starting auction" << std::endl;
 
     //Auction
-    runAuction(X.size2(),X);
+    std::vector<int> res = runAuction(X.size2(),X);
+
+    if (world_rank==0){
+        float rate;
+        bool swap = A_read.size1() < B_read.size1();
+        if (swap)
+            rate = computeSimRate(A_read,B_read,res);
+        else
+            rate = computeSimRate(B_read,A_read,res);
+        std::cout << "Similitarity rate : " << rate * 100 << " % \n";
+    }
+
 
     std::cout << "Worker " << world_rank << " finished!" << std::endl;
 

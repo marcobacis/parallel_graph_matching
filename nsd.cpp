@@ -414,3 +414,34 @@ vector_t allgather_vector(vector_t local) {
 
     return gathered_vect;
 }
+
+
+float computeSimRate(sparse_t A, sparse_t B, std::vector<int> match) {
+    float rate=0;
+    int tota=0;
+    int totb=0;
+    int tot;
+
+    for(is1_t i1 = A.begin1(); i1 != A.end1(); ++i1) {
+        for(is2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
+            if (B(match[i2.index1()] , match[i2.index2()]) != 0) {
+                rate++;
+            }
+            tota++;
+        }
+    }
+
+    for(is1_t i1 = A.begin1(); i1 != A.end1(); ++i1) {
+        for(is2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
+            totb++;
+        }
+    }
+
+    tot = std::min(tota,totb);
+
+    std::cout << "Conserved edges " << rate << " / " << tot << "\n";
+
+    rate = rate/tot;
+
+    return rate;
+}

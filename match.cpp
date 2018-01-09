@@ -45,7 +45,7 @@ BidResult cmp(BidResult reduced, BidResult current) {
     (bidReduce : struct BidResult : omp_out = cmp(omp_out,omp_in)) \
      initializer(omp_priv= {.obj=-1, .buyer=-1, .maxP=-FLT_MAX, .secondP=-FLT_MAX} )
 
-void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
+vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
     int nLocal = X.size1();
 
     vector <int> match(nLocal,-1);
@@ -231,12 +231,13 @@ void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
     }
 
     /* Gather all results */
+    vector<int> res = collectMatch(match,nLocal);
 
-    collectMatch(match,nLocal);
+    return res;
 
 }
 
-void collectMatch(vector<int> match, int nLocal){
+vector<int> collectMatch(vector<int> match, int nLocal){
     vector<int> allMatch;
 
     int disps[worldSize];
@@ -267,9 +268,11 @@ void collectMatch(vector<int> match, int nLocal){
         for (unsigned int i=0;i<allMatch.size();i++)
             cout << i << " <-> " << allMatch[i] << "\n";
     }
+
+    return allMatch;
 }
 
-void runAuction(int nb, matrix_t X){
+vector<int> runAuction(int nb, matrix_t X){
     MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
     MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
 
@@ -278,7 +281,7 @@ void runAuction(int nb, matrix_t X){
 
     MPI_Allreduce(&naLocal,&na,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
 
-    auction(na,nb,X);
+    return auction(na,nb,X);
 }
 
 void auctionSerial(matrix_t X){
