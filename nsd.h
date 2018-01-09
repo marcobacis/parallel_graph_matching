@@ -87,4 +87,4 @@ vector_t broadcast_vector(int root, vector_t vect);
 
 vector_t allgather_vector(vector_t local);
 
-#endif
+float computeSimRate(sparse_t A, sparse_t B, std::vector<int> match);
