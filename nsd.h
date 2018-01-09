@@ -10,6 +10,9 @@ Functions to implement
 
 */
 
+#ifndef _NSD_H_
+#define _NSD_H_
+
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -42,6 +45,11 @@ typedef ublas::matrix<float>::iterator2 i2_t;
 
 typedef std::tuple<int, int, float> matelem;
 
+//ugly solution
+extern int threads_per_node;
+
+#define SET_THREADS() omp_set_dynamic(0);\
+                      omp_set_num_threads(threads_per_node)
 
 //MPI message tags definitions
 #define MSG_MATRIX_SIZE 1
@@ -78,3 +86,5 @@ sparse_t broadcast_matrix(int root, sparse_t mat);
 vector_t broadcast_vector(int root, vector_t vect);
 
 vector_t allgather_vector(vector_t local);
+
+#endif

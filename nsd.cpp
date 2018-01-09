@@ -1,5 +1,6 @@
 #include "nsd.h"
 
+int threads_per_node = 1;
 
 sparse_t readMtxFile(std::string filename) {
     int height, width, nonzeros;
@@ -94,21 +95,6 @@ sparse_t compute_norm(sparse_t mat) {
     return tilde;
 }
 
-vector_t matvect_prod(matrix_t mat, vector_t vect) {
-    vector_t result = vector_t(mat.size1(),0);
-
-    for(i1_t i1 = mat.begin1(); i1 != mat.end1(); ++i1) {
-        float sum = 0;
-        int y = i1.index1();
-        for(i2_t i2 = i1.begin(); i2 != i1.end(); ++i2) {
-            int x = i2.index2();
-            sum += *i2 * vect(x);
-        }
-        result(y) = sum;
-    }
-    return result;
-}
-
 
 void printMatrix(ublas::matrix<float> mat) {
 
@@ -138,13 +124,42 @@ matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n
     }
 
     matrix_t X = ublas::zero_matrix<float>(B.size1(), A.size1());
-    float alpha_pow = 1;
-    for(int i = 0; i < n-1; i++) {
-        X = X + alpha_pow * outer_prod(W_i[i], Z_i[i]);
-        alpha_pow *= alpha;
+        //X = X + alpha_pow * outer_prod(W_i[i], Z_i[i]);
+
+    for(unsigned int y = 0; y < X.size1(); y++) {
+        float alpha_pow = alpha;
+
+        //#pragma omp parallel for collapse(2) private(i,x,alpha_pow)
+        for(int i = 0; i < n-1; i++) {
+            for(unsigned int x = 0; x < X.size2(); x++) {
+                X(y,x) += alpha_pow * W_i[i][y] * Z_i[i][x];
+            }
+            alpha_pow *= alpha;
+        }
+        //last step (n)
+        //#pragma omp parallel for
+        for(unsigned int x = 0; x < X.size2(); x++)
+            X(y,x) = (1-alpha) * X(y,x) + alpha_pow * W_i[n-1][y] * Z_i[n-1][x];
     }
-    X = (1 - alpha) * X + alpha_pow * outer_prod(W_i[n-1], Z_i[n-1]);
+
+    //X = (1 - alpha) * X + alpha_pow * outer_prod(W_i[n-1], Z_i[n-1]);
     return X;
+}
+
+
+vector_t matvect_prod(matrix_t mat, vector_t vect) {
+    vector_t result = vector_t(mat.size1(),0);
+
+    SET_THREADS();
+    #pragma omp parallel for
+    for(unsigned int y = 0; y < mat.size1(); y++) {
+        float sum = 0;
+        for(unsigned int x = 0; x < mat.size2(); x++) {
+            sum += mat(y,x) * vect(x);
+        }
+        result(y) = sum;
+    }
+    return result;
 }
 
 matrix_t compute_x_iterate_mpi(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n,float alpha) {
@@ -183,12 +198,24 @@ matrix_t compute_x_iterate_mpi(matrix_t A, matrix_t B, vector_t Z, vector_t W, i
     }
 
     matrix_t X = ublas::zero_matrix<float>(B.size1(), A.size1());
-    float alpha_pow = 1;
-    for(int i = 0; i < n-1; i++) {
-        X = X + alpha_pow * outer_prod(W_i[i], Z_i[i]);
-        alpha_pow *= alpha;
+
+    SET_THREADS();
+    #pragma omp parallel for
+    for(unsigned int y = 0; y < X.size1(); y++) {
+        float alpha_pow = alpha;
+
+        //#pragma omp parallel for collapse(2) private(i,x,alpha_pow)
+        for(int i = 0; i < n-1; i++) {
+            for(unsigned int x = 0; x < X.size2(); x++) {
+                X(y,x) += alpha_pow * W_i[i][y] * Z_i[i][x];
+            }
+            alpha_pow *= alpha;
+        }
+        //last step (n)
+        //#pragma omp parallel for
+        for(unsigned int x = 0; x < X.size2(); x++)
+            X(y,x) = (1-alpha) * X(y,x) + alpha_pow * W_i[n-1][y] * Z_i[n-1][x];
     }
-    X = (1 - alpha) * X + alpha_pow * outer_prod(W_i[n-1], Z_i[n-1]);
     return X;
 }
 

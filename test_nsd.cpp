@@ -21,6 +21,7 @@ void writeMatrix(ublas::matrix<float> mat, std::string filename) {
     ofs.close();
 }
 
+
 int main(int argc, char **argv)
 {
     srand(time(NULL));
@@ -47,10 +48,15 @@ int main(int argc, char **argv)
     //Root node
     if(world_rank == 0) {
 
-        if (argc != 3) {
+        if (argc < 3) {
             std::cout << "Usage" << std::endl;
-            std::cout << "\t" << argv[0] << " graph1_path graph2_path" << std::endl << std::endl;
+            std::cout << "\t" << argv[0] << " graph1_path graph2_path [num_threads_per_node]" << std::endl << std::endl;
             return 1;
+        }
+
+        //set threads per node (default = 1)
+        if(argc == 4) {
+            threads_per_node = std::stoi(argv[3]);
         }
 
         std::cout << "Initialization" << std::endl << std::flush;

@@ -11,7 +11,7 @@
 
 using namespace std;
 
-int n=100;
+int n=2300;
 
 int worldSize, worldRank;
 
@@ -117,7 +117,8 @@ void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
 
             struct BidResult res = {.obj=-1, .buyer=-1, .maxP=-FLT_MAX, .secondP=-FLT_MAX};
 
-            #pragma omp parallel num_threads(8)
+            SET_THREADS();
+            #pragma omp parallel
             {
             #pragma omp for collapse(2) reduction(bidReduce:res)
             for (unsigned int i = 0; i < freeBuyer.size(); i++) {
@@ -188,7 +189,7 @@ void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
             // calcolo lunghezza totale
             int localLenght = sendBuyer.size();
             MPI_Allgather(&localLenght,1,MPI_INT,recvBuyerLenghts,1,MPI_INT,MPI_COMM_WORLD);
-            int globalLenght=recvBuyerLenghts[0];
+            unsigned int globalLenght=recvBuyerLenghts[0];
             int displ[worldSize];
             displ[0]=0;
             for (int i=1;i<worldSize;i++){
@@ -197,12 +198,12 @@ void auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb objects
             }
 
             //colleziono singoli effettivi update
-            if (recvBuyer.size()<globalLenght)
+            if (recvBuyer.size() < globalLenght)
                 recvBuyer.resize(globalLenght);
 
             MPI_Allgatherv(&sendBuyer.front(),localLenght,MPI_INT,&recvBuyer.front(),recvBuyerLenghts,displ,MPI_INT,MPI_COMM_WORLD);
 
-            for (int i=0;i<globalLenght;i++){
+            for (unsigned int i=0;i<globalLenght;i++){
                 if (recvBuyer[i]>0) {
                     freeBuyerGlobal.insert(recvBuyer[i]-1);
                 } else if (recvBuyer[i]<0) {
