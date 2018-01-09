@@ -48,8 +48,7 @@ typedef std::tuple<int, int, float> matelem;
 //ugly solution
 extern int threads_per_node;
 
-#define SET_THREADS() omp_set_dynamic(0);\
-                      omp_set_num_threads(threads_per_node)
+#define SET_THREADS() omp_set_num_threads(threads_per_node)
 
 //MPI message tags definitions
 #define MSG_MATRIX_SIZE 1
