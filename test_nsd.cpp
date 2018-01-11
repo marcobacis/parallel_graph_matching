@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     // Global parameters
     int s = 10;
     float alpha = 0.8;
-    int n = 10;
+    int n = 1;
 
     // Initialization phase
 
@@ -62,7 +62,7 @@ int main(int argc, char **argv)
             threads_per_node = std::stoi(argv[3]);
         }
 
-        std::cout << "Initialization" << std::endl << std::flush;
+        std::cout << "Initialization" << std::endl;
 
         A_read = readMtxFile(argv[1]);
         B_read = readMtxFile(argv[2]);
@@ -129,7 +129,7 @@ int main(int argc, char **argv)
 
         std::cout << "Worker " << world_rank << " Iteration " << i << std::endl;
 
-        X += compute_x_iterate_mpi(A, B, Z, W, n, alpha);
+        compute_x_iterate_mpi(X, A, B, Z, W, n, alpha);
 
     }
 
