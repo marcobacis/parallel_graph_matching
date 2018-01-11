@@ -117,7 +117,6 @@ vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb obj
 
             struct BidResult res = {.obj=-1, .buyer=-1, .maxP=-FLT_MAX, .secondP=-FLT_MAX};
 
-            SET_THREADS();
             #pragma omp parallel
             {
             #pragma omp for collapse(2) reduction(bidReduce:res)

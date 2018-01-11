@@ -41,6 +41,11 @@ int main(int argc, char **argv)
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
+    if(world_rank == 0){
+        std::cout << "MPI Tasks: " << world_size << std::endl;
+        std::cout << "OpenMP Threads: " << omp_get_max_threads() << std::endl;
+    }
+
     sparse_t A_read;
     sparse_t B_read;
 
@@ -51,15 +56,10 @@ int main(int argc, char **argv)
     //Root node
     if(world_rank == 0) {
 
-        if (argc < 3) {
+        if (argc != 3) {
             std::cout << "Usage" << std::endl;
             std::cout << "\t" << argv[0] << " graph1_path graph2_path [num_threads_per_node]" << std::endl << std::endl;
             return 1;
-        }
-
-        //set threads per node (default = 1)
-        if(argc == 4) {
-            threads_per_node = std::stoi(argv[3]);
         }
 
         std::cout << "Initialization" << std::endl;

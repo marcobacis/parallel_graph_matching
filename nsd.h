@@ -45,11 +45,6 @@ typedef ublas::matrix<float>::iterator2 i2_t;
 
 typedef std::tuple<int, int, float> matelem;
 
-//ugly solution
-extern int threads_per_node;
-
-#define SET_THREADS() omp_set_num_threads(threads_per_node)
-
 //MPI message tags definitions
 #define MSG_MATRIX_SIZE 1
 #define MSG_MATRIX_X 2

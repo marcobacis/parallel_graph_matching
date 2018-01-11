@@ -30,7 +30,6 @@ It's faster because writing with transposed coordinates is a pain if not sorted,
 but we sort them so it's a linear pattern after.
 */
 sparse_t compute_trans(sparse_t mat) {
-    sparse_t trans = sparse_t(mat.size2(), mat.size1());
 
     typedef unsigned long long coord;
 
@@ -44,6 +43,8 @@ sparse_t compute_trans(sparse_t mat) {
             coords.push_back(x * theight + y);
         }
     }
+
+    sparse_t trans = sparse_t(mat.size2(), mat.size1(), coords.size());
 
     std::sort(coords.begin(), coords.end());
 
@@ -91,6 +92,8 @@ sparse_t compute_norm(sparse_t mat) {
             }
         }
     }
+
+    delete[] sums;
 
     return tilde;
 }
@@ -150,7 +153,6 @@ matrix_t compute_x_iterate(matrix_t A, matrix_t B, vector_t Z, vector_t W, int n
 vector_t matvect_prod(sparse_t mat, vector_t vect) {
     vector_t result = vector_t(mat.size1(),0);
 
-    SET_THREADS();
     #pragma omp parallel for shared(mat,vect)
     for(unsigned int y = 0; y < mat.size1(); y++) {
         float sum = 0;
@@ -190,7 +192,7 @@ void compute_x_iterate_mpi(matrix_t &X, sparse_t A, sparse_t B, vector_t Z, vect
     for (int i = 1; i < n; i++) {
         vector_t W_gathered;
 
-        std::cout << "Worker " << rank << " iterate " << i << std::endl;
+        //std::cout << "Worker " << rank << " iterate " << i << std::endl;
         if (i == 1) W_gathered = W;
         else W_gathered = allgather_vector(W_i[i-1]);
 
@@ -198,11 +200,10 @@ void compute_x_iterate_mpi(matrix_t &X, sparse_t A, sparse_t B, vector_t Z, vect
         Z_i[i] = matvect_prod(A, Z_i[i-1]);
     }
 
-    SET_THREADS();
     #pragma omp parallel for shared(X, W_i, Z_i)
     for(unsigned int y = 0; y < X.size1(); y++) {
         float alpha_pow = alpha;
-        if (y%1000 == 0) std::cout << "Worker " << rank << " row " << y << std::endl;
+        //if (y%1000 == 0) std::cout << "Worker " << rank << " row " << y << std::endl;
         //#pragma omp parallel for collapse(2) private(i,x,alpha_pow)
         for(int i = 0; i < n-1; i++) {
             for(unsigned int x = 0; x < X.size2(); x++) {
