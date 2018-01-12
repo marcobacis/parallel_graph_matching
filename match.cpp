@@ -11,7 +11,7 @@
 
 using namespace std;
 
-int n=2300;
+int n=10000;
 
 int worldSize, worldRank;
 
@@ -169,7 +169,10 @@ vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb obj
 
 
                     }
-                }
+                } else if (price[receivedPrices[i+1]] == receivedPrices[i] && receivedPrices[i+1] == res.obj) {
+                    //se qualcuno ha offerto lo stesso prezzo del mio vincitore local e il suo indice globale è minore del mio, perdo l'oggetto
+                    localPrice--;
+				}
             }
 
             /* Check winner */
@@ -211,6 +214,21 @@ vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb obj
             }
 
             if (worldRank==0) cout << na - freeBuyerGlobal.size() << " / " << na << " node matched\n";
+
+            if (worldRank==0 && debug) {
+				int del=0;
+				int add=0;
+				for (unsigned int i=0;i<globalLenght;i++){
+        	        if (recvBuyer[i]>0) {
+						cout << -(recvBuyer[i]-1) << " ";
+						del++;
+        	        } else if (recvBuyer[i]<0) {
+						cout << (-recvBuyer[i])-1 << " ";
+        	            add++;
+        	        }
+            	}
+				cout << "\nAssigned " << add << " ; Losed " << del << "\n";
+			}
 
             /* update epsilon */
             if (gamma > epsilon) {
