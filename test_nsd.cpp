@@ -3,6 +3,7 @@
 #include <mpi.h>
 #include <ctime>
 #include <iomanip>
+#include <chrono>
 #include "nsd.h"
 #include "match.h"
 
@@ -29,9 +30,11 @@ int main(int argc, char **argv)
     // Global parameters
     int s = 10;
     float alpha = 0.8;
-    int n = 1;
+    int n = 10;
 
     // Initialization phase
+
+    auto t_start = std::chrono::high_resolution_clock::now();
 
     MPI_Init(&argc, &argv);
 
@@ -61,8 +64,6 @@ int main(int argc, char **argv)
             std::cout << "\t" << argv[0] << " graph1_path graph2_path [num_threads_per_node]" << std::endl << std::endl;
             return 1;
         }
-
-        std::cout << "Initialization" << std::endl;
 
         A_read = readMtxFile(argv[1]);
         B_read = readMtxFile(argv[2]);
@@ -127,7 +128,7 @@ int main(int argc, char **argv)
         vector_t Z = broadcast_vector(0,Z_buff);
         vector_t W = broadcast_vector(0,W_buff);
 
-        std::cout << "Worker " << world_rank << " Iteration " << i << std::endl;
+        //std::cout << "Worker " << world_rank << " Iteration " << i << std::endl;
 
         compute_x_iterate_mpi(X, A, B, Z, W, n, alpha);
 
@@ -135,12 +136,19 @@ int main(int argc, char **argv)
 
     //printMatrix(X);
 
-    std::cout << "Worker" << world_rank << " starting auction" << std::endl;
+    if (world_rank==0) {
+        auto t_x_end = std::chrono::high_resolution_clock::now();
+        std::cout << "Wall clock time passed: (X matrix) " << std::chrono::duration<double, std::milli>(t_x_end-t_start).count() << " ms\n";
+    }
+    auto t_auct_start = std::chrono::high_resolution_clock::now();
 
     //Auction
     std::vector<int> res = runAuction(X.size2(),X);
 
     if (world_rank==0){
+        auto t_auct_end = std::chrono::high_resolution_clock::now();
+        std::cout << "Wall clock time passed: (Auction) " << std::chrono::duration<double, std::milli>(t_auct_end-t_auct_start).count() << " ms\n";
+
         float rate;
         bool swap = A_read.size1() < B_read.size1();
         if (swap)
@@ -148,10 +156,10 @@ int main(int argc, char **argv)
         else
             rate = computeSimRate(B_read,A_read,res);
         std::cout << "Similitarity rate : " << rate * 100 << " % \n";
+
+        auto t_end = std::chrono::high_resolution_clock::now();
+        std::cout << "Wall clock time passed: (Total) " << std::chrono::duration<double, std::milli>(t_end-t_start).count() << " ms\n";
     }
-
-
-    std::cout << "Worker " << world_rank << " finished!" << std::endl;
 
     // Finalize the MPI environment.
     MPI_Finalize();
