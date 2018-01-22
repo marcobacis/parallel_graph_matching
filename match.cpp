@@ -2,7 +2,7 @@
 #include <omp.h>
 #include <stdio.h>
 #include <iostream>
-#include <math.h>
+#include <cmath>
 #include <cfloat>
 #include <vector>
 #include <unordered_set>
@@ -11,7 +11,7 @@
 
 using namespace std;
 
-int n=10000;
+float n=10e6;
 
 int worldSize, worldRank;
 
@@ -73,15 +73,20 @@ vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb obj
     float teta = 16;
     float xi = 2;
     float epsilon = (n+1)/teta;
-    //float deps = 1/(n+1);
+    float deps = 1/(n+1);
     float gamma = (n+1)/teta;
-    float delta = floor(min(na/xi, n/teta));
+    unsigned int delta = floor(min(na/xi, n/teta));
+    float min_gamma = 5e-10;
 
     bool debug = false;
 
     while (!freeBuyerGlobal.empty()) {
         epsilon = teta/(n+1);
+
+		gamma = (n+1)/teta;
+
         while (freeBuyerGlobal.size() > delta) {
+
             /* Bidding */
 
             if (debug) {
@@ -142,10 +147,12 @@ vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb obj
                 res.secondP = 0;
 
             /* Price update */
-            localPrice = price[res.obj] + (res.maxP - res.secondP + epsilon);
+            localPrice = price[res.obj] + (res.maxP - res.secondP + epsilon * ((rand()%100)/50));
 
-            if (debug)
-                cout << worldRank <<  " : localbuyer " << res.buyer << " make offer for " << res.obj << " offering " << localPrice << "\n";
+            if ((debug || true) && res.obj!=-1 && worldRank==0)
+                cout << worldRank <<  " : localbuyer " << res.buyer << " make offer for " << res.obj << " offering " << localPrice \
+                << " # X value : " << X(res.buyer,res.obj) << " old price : " << price[res.obj] << " maxP : " << res.maxP \
+                << " secondP : " << res.secondP << " eps : " << epsilon << " delta " << delta << " gamma " << gamma << "\n";
 
             /* Gather changed prices */
             sendBuyer.clear();
@@ -236,10 +243,13 @@ vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb obj
             } else {
                 epsilon = gamma;
             }
-            gamma /= xi;
+            if(gamma > min_gamma && rand()%24==0)
+                gamma /= xi;
         }
         delta /= xi;
         teta *= xi;
+		cout << "Exit nested while ######## " << delta << " " << teta << "\n";
+		//epsilon = max(deps,epsilon-deps);
     }
 
     if (debug){
