@@ -302,15 +302,16 @@ vector<int> runAuction(int nb, matrix_t X){
     return auction(na,nb,X);
 }
 
-void auctionSerial(matrix_t X){
+vector<int> auctionSerial(matrix_t X){
     /* Must be runned with only 1 MPI process */
 
     MPI_Init(NULL,NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
     MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
 
-    auction(X.size1(),X.size2(),X);
+    vector<int> res = auction(X.size1(),X.size2(),X);
 
     MPI_Finalize();
 
+    return res;
 }

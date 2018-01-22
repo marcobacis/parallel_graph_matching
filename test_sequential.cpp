@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     //determines the convergence (set to 0.8 in the algorithm)
     float alpha = 0.8;
 
-    int n = 100;
+    int n = 10;
 
     if (argc != 3) {
         std::cout << "Usage" << std::endl;
@@ -82,18 +82,21 @@ int main(int argc, char **argv)
             X += compute_x_iterate(A_tilde, B_tilde, Z[i], W[i], n, alpha);
     }
 
-    //for(int i = 0; i < X.size1(); i++)
-    //    X(i,i) = 0;
-
-    //X /= sum_elements(X);
-
-    //printMatrix(X);
-
     // Auction
 
-    std::cout << "Executing the auction" << std::endl;
+    std::vector<int> res = auctionSerial(X);
 
-    auctionSerial(X);
+    std::cout << "Executing the auction" << std::endl;
+    float rate;
+    if (swap)
+        rate = computeSimRate(A,B,res);
+    else
+        rate = computeSimRate(B,A,res);
+    std::cout << "Similitarity rate : " << rate * 100 << " % \n";
+
+
+    printMatrix(X);
+
 
     return 0;
 }
