@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     // Global parameters
     int s = 10;
     float alpha = 0.8;
-    int n = 1;
+    int n = 10;
 
     // Initialization phase
 
