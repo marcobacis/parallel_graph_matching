@@ -159,6 +159,8 @@ int main(int argc, char **argv)
 
         auto t_end = std::chrono::high_resolution_clock::now();
         std::cout << "Wall clock time passed: (Total) " << std::chrono::duration<double, std::milli>(t_end-t_start).count() << " ms\n";
+
+        printMatrix(X);
     }
 
     // Finalize the MPI environment.
