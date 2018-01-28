@@ -149,7 +149,7 @@ vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb obj
             /* Price update */
             localPrice = price[res.obj] + (res.maxP - res.secondP + epsilon * ((rand()%100)/50));
 
-            if ((debug || true) && res.obj!=-1 && worldRank==0)
+            if ((debug) && res.obj!=-1 && worldRank==0)
                 cout << worldRank <<  " : localbuyer " << res.buyer << " make offer for " << res.obj << " offering " << localPrice \
                 << " # X value : " << X(res.buyer,res.obj) << " old price : " << price[res.obj] << " maxP : " << res.maxP \
                 << " secondP : " << res.secondP << " eps : " << epsilon << " delta " << delta << " gamma " << gamma << "\n";
@@ -220,7 +220,7 @@ vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb obj
                 }
             }
 
-            if (worldRank==0) cout << na - freeBuyerGlobal.size() << " / " << na << " node matched\n";
+            //if (worldRank==0) cout << na - freeBuyerGlobal.size() << " / " << na << " node matched\n";
 
             if (worldRank==0 && debug) {
 				int del=0;
@@ -248,7 +248,7 @@ vector<int> auction(int na, int nb, matrix_t X){ // na <= nb , na buyers, nb obj
         }
         delta /= xi;
         teta *= xi;
-		cout << "Exit nested while ######## " << delta << " " << teta << "\n";
+		//cout << "Exit nested while ######## " << delta << " " << teta << "\n";
 		//epsilon = max(deps,epsilon-deps);
     }
 
@@ -292,10 +292,10 @@ vector<int> collectMatch(vector<int> match, int nLocal){
 
     MPI_Gatherv(&match.front(),nLocal,MPI_INT,&allMatch.front(),contv,disps,MPI_INT,0,MPI_COMM_WORLD);
 
-    if (worldRank==0){
+    /*if (worldRank==0){
         for (unsigned int i=0;i<allMatch.size();i++)
             cout << i << " <-> " << allMatch[i] << "\n";
-    }
+    }*/
 
     return allMatch;
 }

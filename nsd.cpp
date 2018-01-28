@@ -465,7 +465,7 @@ float computeSimRate(sparse_t A, sparse_t B, std::vector<int> match) {
 
     tot = std::min(tota,totb);
 
-    std::cout << "Conserved edges " << rate << " / " << tot << "\n";
+    std::cout /*<< "Conserved edges " */ << rate /*<< " / " << tot */ << ",";
 
     rate = rate/tot;
 

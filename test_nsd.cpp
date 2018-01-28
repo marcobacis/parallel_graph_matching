@@ -28,7 +28,7 @@ int main(int argc, char **argv)
     srand(time(NULL));
 
     // Global parameters
-    int s = 10;
+    int s = 100;
     float alpha = 0.8;
     int n = 10;
 
@@ -45,8 +45,8 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
     if(world_rank == 0){
-        std::cout << "MPI Tasks: " << world_size << std::endl;
-        std::cout << "OpenMP Threads: " << omp_get_max_threads() << std::endl;
+        std::cout /*<< "MPI Tasks: "*/ << world_size << ",";
+        std::cout /*<< "OpenMP Threads: "*/ << omp_get_max_threads() << ",";
     }
 
     sparse_t A_read;
@@ -138,7 +138,7 @@ int main(int argc, char **argv)
 
     if (world_rank==0) {
         auto t_x_end = std::chrono::high_resolution_clock::now();
-        std::cout << "Wall clock time passed: (X matrix) " << std::chrono::duration<double, std::milli>(t_x_end-t_start).count() << " ms\n";
+        std::cout /*<< "Wall clock time passed: (X matrix) "*/ << std::chrono::duration<double, std::milli>(t_x_end-t_start).count() << ",";
     }
     auto t_auct_start = std::chrono::high_resolution_clock::now();
 
@@ -147,7 +147,7 @@ int main(int argc, char **argv)
 
     if (world_rank==0){
         auto t_auct_end = std::chrono::high_resolution_clock::now();
-        std::cout << "Wall clock time passed: (Auction) " << std::chrono::duration<double, std::milli>(t_auct_end-t_auct_start).count() << " ms\n";
+        std::cout /*<< "Wall clock time passed: (Auction) " */ << std::chrono::duration<double, std::milli>(t_auct_end-t_auct_start).count() << ",";
 
         float rate;
         bool swap = A_read.size1() < B_read.size1();
@@ -155,12 +155,12 @@ int main(int argc, char **argv)
             rate = computeSimRate(A_read,B_read,res);
         else
             rate = computeSimRate(B_read,A_read,res);
-        std::cout << "Similitarity rate : " << rate * 100 << " % \n";
+        std::cout /*<< "Similitarity rate : " */ << rate * 100 << ",";
 
         auto t_end = std::chrono::high_resolution_clock::now();
-        std::cout << "Wall clock time passed: (Total) " << std::chrono::duration<double, std::milli>(t_end-t_start).count() << " ms\n";
+        std::cout /*<< "Wall clock time passed: (Total) " */ << std::chrono::duration<double, std::milli>(t_end-t_start).count() << "\n";
 
-        printMatrix(X);
+        //printMatrix(X);
     }
 
     // Finalize the MPI environment.

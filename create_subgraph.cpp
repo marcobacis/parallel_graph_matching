@@ -11,7 +11,7 @@ typedef  unsigned long long coord;
 int main(int argc, char **argv) {
 
     if(argc != 3) {
-        std::cout << "Usage " << argv[0] << "filename subgraph_size" << std::endl;
+        std::cout << "Usage " << argv[0] << " filename subgraph_size" << std::endl;
         return 1;
     }
     //read from file
